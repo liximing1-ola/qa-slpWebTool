@@ -1,0 +1,52 @@
+{% extends "base_form.html" %}
+
+{% block title %}用户加物品{% endblock %}
+{% block form_title %}🎁 用户加物品{% endblock %}
+{% block form_desc %}给用户背包添加物品（留空cid则添加默认物品）{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="uid" class="required">用户UID</label>
+    <input type="text" id="uid" name="uid" placeholder="请输入9位用户UID" maxlength="9" required>
+</div>
+<div class="form-row">
+    <div class="form-group">
+        <label for="cid">物品CID</label>
+        <input type="text" id="cid" name="cid" placeholder="多个用逗号分隔">
+    </div>
+    <div class="form-group">
+        <label for="num">数量</label>
+        <input type="text" id="num" name="num" placeholder="默认3个" value="3">
+    </div>
+</div>
+{% endblock %}
+
+{% block submit_text %}添加物品{% endblock %}
+
+{% block extra_content %}
+<div class="info-box">
+    <h4>📋 可用物品列表</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>gid</th>
+                <th>cid</th>
+                <th>名字</th>
+                <th>分类</th>
+                <th>觉醒</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+            <tr>
+                <td>{{ row[0] }}</td>
+                <td>{{ row[1] }}</td>
+                <td>{{ row[2] }}</td>
+                <td>{{ row[3] }}</td>
+                <td>{{ row[4] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,632 @@
+{% extends "base_form.html" %}
+
+{% block title %}作物售价计算器{% endblock %}
+{% block form_title %}🌾 作物售价计算器{% endblock %}
+{% block form_desc %}计算作物加工前后的售价倍率加成{% endblock %}
+
+{% block extra_css %}
+<style>
+    .calculator-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+    }
+
+    .calculator-table th,
+    .calculator-table td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: center;
+    }
+
+    .calculator-table th {
+        background-color: #28a745;
+        color: white;
+        font-weight: 600;
+    }
+
+    .calculator-table td {
+        background-color: #fff;
+    }
+
+    .calculator-table .highlight-yellow {
+        background-color: #fff3cd;
+    }
+
+    .calculator-table .highlight-green {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .calculator-table .highlight-red {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .calculator-table .section-title {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        text-align: left;
+        padding-left: 15px;
+    }
+
+    .calculator-table input[type="number"] {
+        width: 60px;
+        padding: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    .calculator-table input[type="number"]:focus {
+        outline: none;
+        border-color: #28a745;
+    }
+
+    .result-section {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #28a745;
+    }
+
+    .result-section h4 {
+        margin-bottom: 10px;
+        color: #333;
+    }
+
+    .result-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .result-row:last-child {
+        border-bottom: none;
+    }
+
+    .result-label {
+        color: #666;
+    }
+
+    .result-value {
+        font-weight: 600;
+        color: #28a745;
+    }
+
+    .section-divider {
+        margin: 20px 0;
+        border: none;
+        border-top: 2px solid #e0e0e0;
+    }
+
+    /* 快捷操作区域样式 */
+    .action-section {
+        margin-top: 30px;
+        padding: 25px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+        border-radius: 12px;
+        border: 1px solid #d1d9e0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .action-section h4 {
+        margin-bottom: 20px;
+        color: #333;
+        font-size: 1.1rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 15px;
+    }
+
+    .btn-action {
+        display: flex;
+        align-items: center;
+        padding: 16px 20px;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        color: #fff;
+        text-align: left;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .btn-icon {
+        font-size: 1.6rem;
+        margin-right: 15px;
+    }
+
+    .btn-text {
+        flex: 1;
+    }
+
+    .btn-farm {
+        background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+    }
+
+    .btn-machine {
+        background: linear-gradient(135deg, #722ed1 0%, #531dab 100%);
+    }
+
+    .btn-fish {
+        background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+    }
+
+    .btn-action:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    }
+
+    .btn-action:active {
+        transform: translateY(-1px);
+    }
+
+    .btn-action:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .action-result {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        display: none;
+        font-weight: 500;
+    }
+
+    .action-result.show {
+        display: block;
+    }
+
+    .action-result.success {
+        background: #f6ffed;
+        color: #389e0d;
+        border: 1px solid #b7eb8f;
+    }
+
+    .action-result.error {
+        background: #fff2f0;
+        color: #cf1322;
+        border: 1px solid #ffa39e;
+    }
+</style>
+{% endblock %}
+
+{% block form_content %}
+<!-- 加工后倍率 -->
+<table class="calculator-table">
+    <tr>
+        <td class="section-title" style="width: 40%;">加工后倍率</td>
+        <td class="highlight-green">
+            <input type="number" id="processRate" name="processRate" value="1.25" step="0.01" min="1" onchange="calculate()">
+        </td>
+        <td class="highlight-yellow"></td>
+    </tr>
+</table>
+
+<hr class="section-divider">
+
+<!-- 基础蔬菜摊售价倍率 -->
+<table class="calculator-table">
+    <tr>
+        <th style="width: 25%;">基础蔬菜摊<br>售价倍率</th>
+        <th class="highlight-green" colspan="2">
+            <input type="number" id="baseRate" name="baseRate" value="2" step="0.01" min="1" onchange="calculate()">
+        </th>
+        <th style="width: 15%;">合计</th>
+    </tr>
+    <tr>
+        <td rowspan="4" class="section-title">种植作物<br>售价倍率加成</td>
+        <td>加成</td>
+        <td>个数</td>
+        <td rowspan="4" id="plantTotal">200%</td>
+    </tr>
+    <tr>
+        <td>0.05</td>
+        <td class="highlight-green">
+            <input type="number" id="plant05" name="plant05" value="0" min="0" onchange="calculate()">
+        </td>
+    </tr>
+    <tr>
+        <td>0.1</td>
+        <td class="highlight-green">
+            <input type="number" id="plant10" name="plant10" value="0" min="0" onchange="calculate()">
+        </td>
+    </tr>
+    <tr>
+        <td>0.15</td>
+        <td class="highlight-green">
+            <input type="number" id="plant15" name="plant15" value="0" min="0" onchange="calculate()">
+        </td>
+    </tr>
+    <tr>
+        <td rowspan="4" class="section-title">加工作物<br>售价倍率加成</td>
+        <td>加成</td>
+        <td>个数</td>
+        <td rowspan="4" id="processTotal">215%</td>
+    </tr>
+    <tr>
+        <td>0.05</td>
+        <td class="highlight-green">
+            <input type="number" id="process05" name="process05" value="0" min="0" onchange="calculate()">
+        </td>
+    </tr>
+    <tr>
+        <td>0.1</td>
+        <td class="highlight-green">
+            <input type="number" id="process10" name="process10" value="0" min="0" onchange="calculate()">
+        </td>
+    </tr>
+    <tr>
+        <td>0.15</td>
+        <td class="highlight-green">
+            <input type="number" id="process15" name="process15" value="1" min="0" onchange="calculate()">
+        </td>
+    </tr>
+</table>
+
+<hr class="section-divider">
+
+<!-- 作物售出单价 -->
+<table class="calculator-table">
+    <tr>
+        <th style="width: 20%;">作物售出单价</th>
+        <th>假设-<br>基础价格</th>
+        <th>假设-<br>作物等级</th>
+        <th>加工前<br>售价(单价)</th>
+        <th class="highlight-red">加工后<br>售价(单价)</th>
+    </tr>
+    <tr>
+        <td class="highlight-yellow">示例作物</td>
+        <td class="highlight-green">
+            <input type="number" id="basePrice" name="basePrice" value="3" min="1" onchange="calculate()">
+        </td>
+        <td class="highlight-green">
+            <input type="number" id="cropLevel" name="cropLevel" value="11" min="0" onchange="calculate()">
+        </td>
+        <td id="priceBefore">42</td>
+        <td class="highlight-red" id="priceAfter">55.13</td>
+    </tr>
+</table>
+
+<div class="result-section">
+    <h4>📊 计算结果</h4>
+    <div class="result-row">
+        <span class="result-label">种植作物倍率合计:</span>
+        <span class="result-value" id="resultPlantTotal">200%</span>
+    </div>
+    <div class="result-row">
+        <span class="result-label">加工作物倍率合计:</span>
+        <span class="result-value" id="resultProcessTotal">215%</span>
+    </div>
+    <div class="result-row">
+        <span class="result-label">加工前售价:</span>
+        <span class="result-value" id="resultPriceBefore">42</span>
+    </div>
+    <div class="result-row">
+        <span class="result-label">加工后售价:</span>
+        <span class="result-value" id="resultPriceAfter">55.13</span>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block submit_text %}保存配置{% endblock %}
+
+{% block extra_content %}
+<!-- 快捷操作区域 -->
+<div class="action-section">
+    <h4>🎮 快捷操作</h4>
+    <div class="form-group">
+        <label for="uid">用户UID</label>
+        <input type="text" id="uid" name="uid" placeholder="请输入用户UID" maxlength="9">
+    </div>
+    <div class="action-buttons">
+        <button type="button" class="btn-action btn-farm" onclick="executeFarmMature()">
+            <span class="btn-icon">🌾</span>
+            <span class="btn-text">农场作物成熟</span>
+        </button>
+        <button type="button" class="btn-action btn-machine" onclick="executeMachineMature()">
+            <span class="btn-icon">🏭</span>
+            <span class="btn-text">加工作物成熟</span>
+        </button>
+        <button type="button" class="btn-action btn-fish" onclick="executeFishMature()">
+            <span class="btn-icon">🎣</span>
+            <span class="btn-text">钓鱼成熟</span>
+        </button>
+    </div>
+    <div id="actionResult" class="action-result"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function calculate() {
+        // 获取输入值
+        const processRate = parseFloat(document.getElementById('processRate').value) || 1.25;
+
+        // 种植作物
+        const plant05 = parseInt(document.getElementById('plant05').value) || 0;
+        const plant10 = parseInt(document.getElementById('plant10').value) || 0;
+        const plant15 = parseInt(document.getElementById('plant15').value) || 0;
+
+        // 加工作物
+        const process05 = parseInt(document.getElementById('process05').value) || 0;
+        const process10 = parseInt(document.getElementById('process10').value) || 0;
+        const process15 = parseInt(document.getElementById('process15').value) || 0;
+
+        // 基础倍率（基础蔬菜摊售价倍率）
+        const baseRate = parseFloat(document.getElementById('baseRate').value) || 2;
+
+        // 基础价格和等级
+        const basePrice = parseFloat(document.getElementById('basePrice').value) || 3;
+        const cropLevel = parseInt(document.getElementById('cropLevel').value);
+        const finalCropLevel = isNaN(cropLevel) ? 11 : cropLevel;
+
+        // 计算种植作物倍率加成总和
+        const plantBonus = (plant05 * 0.05 + plant10 * 0.1 + plant15 * 0.15);
+        const plantTotalRate = baseRate + plantBonus;
+
+        // 计算加工作物倍率加成总和
+        const processBonus = (process05 * 0.05 + process10 * 0.1 + process15 * 0.15);
+        const processTotalRate = baseRate + processBonus;
+
+        // 计算售价 - 新公式
+        // 加工前售价 = ROUND((基础价格 + 作物等级) * (1 + 种植作物总倍率), 2)
+        const priceBefore = Math.round((basePrice + finalCropLevel) * (1 + plantTotalRate) * 100) / 100;
+
+        // 加工后售价 = ROUND((基础价格 + 作物等级) * 加工后倍率 * (1 + 加工作物总倍率), 2)
+        const priceAfter = Math.round((basePrice + finalCropLevel) * processRate * (1 + processTotalRate) * 100) / 100;
+
+        // 更新显示
+        document.getElementById('plantTotal').textContent = (plantTotalRate * 100).toFixed(0) + '%';
+        document.getElementById('processTotal').textContent = (processTotalRate * 100).toFixed(0) + '%';
+
+        document.getElementById('priceBefore').textContent = priceBefore.toFixed(2);
+        document.getElementById('priceAfter').textContent = priceAfter.toFixed(2);
+
+        // 更新结果区域
+        document.getElementById('resultPlantTotal').textContent = (plantTotalRate * 100).toFixed(0) + '%';
+        document.getElementById('resultProcessTotal').textContent = (processTotalRate * 100).toFixed(0) + '%';
+        document.getElementById('resultPriceBefore').textContent = priceBefore.toFixed(2);
+        document.getElementById('resultPriceAfter').textContent = priceAfter.toFixed(2);
+    }
+
+    // 保存配置到 localStorage
+    function saveConfig() {
+        const config = {
+            processRate: document.getElementById('processRate').value,
+            baseRate: document.getElementById('baseRate').value,
+            plant05: document.getElementById('plant05').value,
+            plant10: document.getElementById('plant10').value,
+            plant15: document.getElementById('plant15').value,
+            process05: document.getElementById('process05').value,
+            process10: document.getElementById('process10').value,
+            process15: document.getElementById('process15').value,
+            basePrice: document.getElementById('basePrice').value,
+            cropLevel: document.getElementById('cropLevel').value
+        };
+        localStorage.setItem('cropPriceConfig', JSON.stringify(config));
+        return true;
+    }
+
+    // 从 localStorage 加载配置
+    function loadConfig() {
+        const saved = localStorage.getItem('cropPriceConfig');
+        if (saved) {
+            try {
+                const config = JSON.parse(saved);
+                if (config.processRate) document.getElementById('processRate').value = config.processRate;
+                if (config.baseRate) document.getElementById('baseRate').value = config.baseRate;
+                if (config.plant05) document.getElementById('plant05').value = config.plant05;
+                if (config.plant10) document.getElementById('plant10').value = config.plant10;
+                if (config.plant15) document.getElementById('plant15').value = config.plant15;
+                if (config.process05) document.getElementById('process05').value = config.process05;
+                if (config.process10) document.getElementById('process10').value = config.process10;
+                if (config.process15) document.getElementById('process15').value = config.process15;
+                if (config.basePrice) document.getElementById('basePrice').value = config.basePrice;
+                if (config.cropLevel !== undefined) document.getElementById('cropLevel').value = config.cropLevel;
+            } catch (e) {
+                console.error('加载配置失败:', e);
+            }
+        }
+    }
+
+    // 页面加载时先加载配置，再计算
+    document.addEventListener('DOMContentLoaded', function() {
+        loadConfig();
+        calculate();
+
+        // 拦截表单提交，保存配置并阻止表单重置
+        const form = document.querySelector('form');
+        const originalSubmit = form.onsubmit;
+
+        form.addEventListener('submit', function(e) {
+            // 保存配置
+            saveConfig();
+
+            // 阻止 base_form.html 中的 form.reset()
+            // 通过保存当前值，在提交成功后恢复
+            const savedValues = {};
+            const inputs = form.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
+                savedValues[input.id] = input.value;
+            });
+
+            // 监听提交完成后的处理
+            setTimeout(() => {
+                // 恢复所有输入值
+                Object.keys(savedValues).forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input) {
+                        input.value = savedValues[id];
+                    }
+                });
+                // 重新计算
+                calculate();
+            }, 100);
+        });
+    });
+
+    // 显示操作结果
+    function showActionResult(message, isSuccess) {
+        const resultDiv = document.getElementById('actionResult');
+        resultDiv.textContent = message;
+        resultDiv.className = 'action-result show ' + (isSuccess ? 'success' : 'error');
+        setTimeout(() => {
+            resultDiv.classList.remove('show');
+        }, 5000);
+    }
+
+    // 获取UID
+    function getUid() {
+        const uid = document.getElementById('uid').value.trim();
+        if (!uid) {
+            showActionResult('请输入用户UID', false);
+            return null;
+        }
+        return uid;
+    }
+
+    // 设置按钮状态
+    function setButtonsDisabled(disabled) {
+        document.querySelectorAll('.btn-action').forEach(btn => {
+            btn.disabled = disabled;
+        });
+    }
+
+    // 1. 农场作物成熟
+    function executeFarmMature() {
+        const uid = getUid();
+        if (!uid) return;
+
+        setButtonsDisabled(true);
+        showActionResult('正在执行农场作物成熟...', true);
+
+        // 先查询 farm_id
+        fetch('/qatest2023/api/sql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                sql: `select belong_uid as uid,id as farm_id from starship.xs_farm_info where belong_uid =${uid};`
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data && data.data.length > 0) {
+                const farmId = data.data[0].farm_id;
+                // 执行更新
+                return fetch('/qatest2023/api/sql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        sql: `update starship.xs_farm_plot set crop_state1_time=UNIX_TIMESTAMP()-3600 ,crop_state2_time=UNIX_TIMESTAMP()-3600 where farm_id=${farmId};`
+                    })
+                });
+            } else {
+                throw new Error('未找到该用户的农场信息');
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showActionResult('✅ 农场作物成熟成功！', true);
+            } else {
+                showActionResult('❌ 执行失败：' + (data.message || '未知错误'), false);
+            }
+        })
+        .catch(error => {
+            showActionResult('❌ 错误：' + error.message, false);
+        })
+        .finally(() => {
+            setButtonsDisabled(false);
+        });
+    }
+
+    // 2. 加工作物成熟
+    function executeMachineMature() {
+        const uid = getUid();
+        if (!uid) return;
+
+        setButtonsDisabled(true);
+        showActionResult('正在执行加工作物成熟...', true);
+
+        fetch('/qatest2023/api/sql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                sql: `update starship.xs_farm_machine set status=2 where belong_uid=${uid} and fruit_id>0;`
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showActionResult('✅ 加工作物成熟成功！', true);
+            } else {
+                showActionResult('❌ 执行失败：' + (data.message || '未知错误'), false);
+            }
+        })
+        .catch(error => {
+            showActionResult('❌ 错误：' + error.message, false);
+        })
+        .finally(() => {
+            setButtonsDisabled(false);
+        });
+    }
+
+    // 3. 钓鱼成熟
+    function executeFishMature() {
+        const uid = getUid();
+        if (!uid) return;
+
+        setButtonsDisabled(true);
+        showActionResult('正在执行钓鱼成熟...', true);
+
+        fetch('/qatest2023/api/sql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                sql: `UPDATE starship.xs_fishpond_user set fishing_state_time=UNIX_TIMESTAMP()-3600 where belong_uid=${uid};`
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showActionResult('✅ 钓鱼成熟成功！', true);
+            } else {
+                showActionResult('❌ 执行失败：' + (data.message || '未知错误'), false);
+            }
+        })
+        .catch(error => {
+            showActionResult('❌ 错误：' + error.message, false);
+        })
+        .finally(() => {
+            setButtonsDisabled(false);
+        });
+    }
+</script>
+{% endblock %}

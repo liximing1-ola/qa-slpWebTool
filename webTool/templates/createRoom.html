@@ -1,0 +1,101 @@
+{% extends "base_form.html" %}
+
+{% block title %}创建商业房{% endblock %}
+{% block form_title %}🏠 创建商业房{% endblock %}
+{% block form_desc %}创建各类商业房间{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="uid" class="required">用户UID</label>
+    <input type="text" id="uid" name="uid" placeholder="请输入9位用户UID" maxlength="9" required>
+</div>
+<div class="form-group">
+    <label for="name" class="required">房间名称(name)</label>
+    <input type="text" id="name" name="name" placeholder="请输入房间名称" value="测试" required>
+</div>
+<div class="form-group">
+    <label for="factoryType" class="required">房间类型(factoryType)</label>
+    <select id="factoryType" name="factoryType" required>
+        <option value="business-normal8">标准8麦(business-normal8)</option>
+        <option value="cplink-v2">新连连看(cplink-v2)</option>
+        <option value="business-music">点唱-9麦(business-music)</option>
+        <option value="business-music8">点唱-8麦(business-music8)</option>
+        <option value="business-friend">标准9麦(business-friend)</option>
+        <option value="business-connector-bar">连线吧(树洞)(business-connector-bar)</option>
+        <option value="business-auction">拍卖(business-auction)</option>
+        <option value="business-soundchat">直播(business-soundchat)</option>
+        <option value="business-bill">派单(business-bill)</option>
+        <option value="business-bump">乌龟对对碰(business-bump)</option>
+        <option value="business-heart">心动速配(business-heart)</option>
+        <option value="business-talent-show">才艺厅(business-talent-show)</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="settlement_channel" class="required">结算渠道(settlement_channel)</label>
+    <select id="settlement_channel" name="settlement_channel" required>
+        <option value="joy-man">joy-man</option>
+        <option value="joy-woman">joy-woman</option>
+        <option value="cplink">cplink</option>
+        <option value="music">music</option>
+        <option value="game">game</option>
+        <option value="tree-hole">tree-hole</option>
+        <option value="play">play</option>
+        <option value="live">live</option>
+        <option value="slp-order">slp-order</option>
+        <option value="bump">bump</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="app_id" class="required">应用</label>
+    <select id="app_id" name="app_id" required>
+        <option value="66" selected>不夜</option>
+        <option value="70">小拾光</option>
+    </select>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // factoryType -> 默认 settlement_channel 固定搭配
+    // 仅在选中时匹配默认值，不强制一对一，后续可手动修改
+    const FACTORY_CHANNEL_MAP = {
+        'business-normal8': 'joy-man',        // 标准8麦（情感男/情感女二选一，默认情感男）
+        'cplink-v2': 'cplink',                // 新连连看
+        'business-music': 'music',            // 点唱-9麦
+        'business-music8': 'music',           // 点唱-8麦
+        'business-friend': 'game',            // 标准9麦
+        'business-connector-bar': 'tree-hole',// 连线吧(树洞)
+        'business-auction': 'play',           // 拍卖（踢保）
+        'business-soundchat': 'live',         // 直播
+        'business-bill': 'slp-order',         // 派单
+        'business-bump': 'bump',              // 乌龟对对碰
+        'business-heart': 'cplink',           // 心动速配
+        'business-talent-show': 'music'       // 才艺厅
+    };
+
+    (function() {
+        const factoryTypeSelect = document.getElementById('factoryType');
+        const channelSelect = document.getElementById('settlement_channel');
+
+        function applyDefaultChannel() {
+            const channel = FACTORY_CHANNEL_MAP[factoryTypeSelect.value];
+            // 防御：未配置映射的类型保持当前选择不变
+            if (channel) {
+                channelSelect.value = channel;
+            }
+        }
+
+        factoryTypeSelect.addEventListener('change', applyDefaultChannel);
+
+        // 提交成功后 form.reset() 不触发 change 事件，重置后重新应用默认搭配
+        document.querySelector('form').addEventListener('reset', function() {
+            setTimeout(applyDefaultChannel, 0);
+        });
+
+        // 页面加载时应用一次，保证初始状态符合默认搭配
+        applyDefaultChannel();
+    })();
+</script>
+{% endblock %}
+
+{% block submit_text %}创建房间{% endblock %}

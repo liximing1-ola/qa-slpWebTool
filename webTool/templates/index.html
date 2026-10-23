@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA测试工具平台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #fff;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            color: rgba(255,255,255,0.9);
+            font-size: 1.1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .card-desc {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+            padding: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .header h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>QA测试工具平台</h1>
+            <p>生活充满了选择，而生活的态度就是一切</p>
+        </div>
+
+        <div class="grid">
+            <a href="/qatest2023/add" class="card">
+                <div class="card-icon">💰</div>
+                <div class="card-title">用户加钱</div>
+                <div class="card-desc">给用户账户增加钻石</div>
+            </a>
+
+            <a href="/qatest2023/idChange" class="card">
+                <div class="card-icon">🆔</div>
+                <div class="card-title">身份认证</div>
+                <div class="card-desc">修改用户身份信息</div>
+            </a>
+
+            <a href="/qatest2023/insertPerson" class="card">
+                <div class="card-icon">👥</div>
+                <div class="card-title">房间加人</div>
+                <div class="card-desc">向房间添加虚拟用户</div>
+            </a>
+
+            <a href="/qatest2023/addCommodity" class="card">
+                <div class="card-icon">🎁</div>
+                <div class="card-title">用户加物品</div>
+                <div class="card-desc">给用户背包添加物品</div>
+            </a>
+
+            <a href="/qatest2023/createRoom" class="card">
+                <div class="card-icon">🏠</div>
+                <div class="card-title">创建商业房</div>
+                <div class="card-desc">创建各类商业房间</div>
+            </a>
+
+            <a href="/qatest2023/pay" class="card">
+                <div class="card-icon">💳</div>
+                <div class="card-title">模拟充值</div>
+                <div class="card-desc">模拟支付充值流程</div>
+            </a>
+
+            <a href="/qatest2023/addExp" class="card">
+                <div class="card-icon">📈</div>
+                <div class="card-title">增加经验值</div>
+                <div class="card-desc">VIP/人气/贵族经验</div>
+            </a>
+
+            <a href="/qatest2023/addfragment" class="card">
+                <div class="card-icon">💎</div>
+                <div class="card-title">添加装扮碎片</div>
+                <div class="card-desc">增加装扮碎片数量</div>
+            </a>
+
+            <a href="/qatest2023/insertbroker" class="card">
+                <div class="card-icon">🏢</div>
+                <div class="card-title">加/退工会</div>
+                <div class="card-desc">公会成员管理</div>
+            </a>
+
+            <a href="/qatest2023/addGames" class="card">
+                <div class="card-icon">🎮</div>
+                <div class="card-title">添加房间玩法</div>
+                <div class="card-desc">配置房间游戏玩法</div>
+            </a>
+
+            <a href="/qatest2023/cropPrice" class="card">
+                <div class="card-icon">🌾</div>
+                <div class="card-title">作物价格计算器</div>
+                <div class="card-desc">计算作物加工前后售价</div>
+            </a>
+        </div>
+
+        <div class="footer">
+            <p>广告位招租 | 仅供内部测试使用</p>
+        </div>
+    </div>
+</body>
+</html>

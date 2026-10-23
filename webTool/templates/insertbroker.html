@@ -1,0 +1,34 @@
+{% extends "base_form.html" %}
+
+{% block title %}公会管理{% endblock %}
+{% block form_title %}🏢 公会管理{% endblock %}
+{% block form_desc %}加入或退出公会{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="want_type" class="required">操作类型</label>
+    <select id="want_type" name="want_type" required>
+        <option value="join">加入公会</option>
+        <option value="exit">退出公会</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="app_id" class="required">应用</label>
+    <select id="app_id" name="app_id" required>
+        <option value="66" selected>不夜</option>
+        <option value="70">小拾光</option>
+    </select>
+</div>
+<div class="form-row">
+    <div class="form-group">
+        <label for="uid" class="required">用户UID</label>
+        <input type="text" id="uid" name="uid" placeholder="9位用户ID" maxlength="9" required>
+    </div>
+    <div class="form-group">
+        <label for="bid">公会BID</label>
+        <input type="text" id="bid" name="bid" placeholder="默认200000030" value="200000030" maxlength="9">
+    </div>
+</div>
+{% endblock %}
+
+{% block submit_text %}确认操作{% endblock %}

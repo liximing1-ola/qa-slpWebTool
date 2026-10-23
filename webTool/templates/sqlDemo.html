@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sqlDemo</title>
+
+    <style type="text/css">
+     input{
+     margin-right: 5px;
+     margin-left: 5px;
+     margin-top: 10px;
+     margin-bottom: 10px；
+     }
+        .one{
+        position: absolute;
+        width:300px
+        height:300px
+        background: #9ca05c;
+        display: flex;
+        left:50%;
+        top:40%;
+        margin-left: -150px;
+        margin-right: -150px
+        }
+
+        .two{
+        position: absolute;
+        width:300px
+        height:300px
+        background: #9ca05c;
+        display: flex;
+        left:45%;
+        top:33%;
+        margin-left: -150px;
+        margin-right: -150px
+        }
+</style>
+
+</head>
+<body>
+<center>
+        <div class="two">
+   <h3>---------------输入用户ID查询用户姓名-----------------</h3>
+        </div>
+    <div class="one">
+        <form action="/qatest2023/sqlDemo" method="post">
+        用户ID: <input type="text" name="id" size="20" maxlength="20" style="height: 20px; color:red"><br>
+        <input type="submit" name="submit" value="确定" style="height: 30px; width: 70px">
+        </form>
+    </div>
+</center>
+</body>
+</html>

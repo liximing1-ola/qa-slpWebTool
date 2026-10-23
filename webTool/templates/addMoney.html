@@ -1,0 +1,18 @@
+{% extends "base_form.html" %}
+
+{% block title %}用户加钱{% endblock %}
+{% block form_title %}💰 用户加钱{% endblock %}
+{% block form_desc %}给用户账户增加钻石（9位UID）{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="uid" class="required">用户UID</label>
+    <input type="text" id="uid" name="uid" placeholder="请输入9位用户UID" maxlength="9" required>
+</div>
+<div class="form-group">
+    <label for="money" class="required">打款钱数</label>
+    <input type="text" id="money" name="money" placeholder="请输入金额（钻石）" required>
+</div>
+{% endblock %}
+
+{% block submit_text %}立即打款{% endblock %}

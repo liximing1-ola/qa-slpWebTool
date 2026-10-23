@@ -1,0 +1,27 @@
+{% extends "base_form.html" %}
+
+{% block title %}房间加人{% endblock %}
+{% block form_title %}👥 房间加人{% endblock %}
+{% block form_desc %}向房间添加虚拟用户（最多12人）{% endblock %}
+
+{% block form_content %}
+<div class="form-row">
+    <div class="form-group">
+        <label for="rid" class="required">房间RID</label>
+        <input type="text" id="rid" name="rid" placeholder="9位房间ID" maxlength="9" required>
+    </div>
+    <div class="form-group">
+        <label for="num">人数</label>
+        <input type="text" id="num" name="num" placeholder="默认10人" value="10" maxlength="2">
+    </div>
+</div>
+<div class="form-group">
+    <label for="app_id" class="required">应用</label>
+    <select id="app_id" name="app_id" required>
+        <option value="66" selected>不夜</option>
+        <option value="70">小拾光</option>
+    </select>
+</div>
+{% endblock %}
+
+{% block submit_text %}添加人员{% endblock %}

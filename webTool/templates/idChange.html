@@ -1,0 +1,21 @@
+{% extends "base_form.html" %}
+
+{% block title %}身份认证{% endblock %}
+{% block form_title %}🆔 身份认证{% endblock %}
+{% block form_desc %}修改用户身份证信息（自动生成随机身份）{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="uid" class="required">用户UID</label>
+    <input type="text" id="uid" name="uid" placeholder="请输入9位用户UID" maxlength="9" required>
+</div>
+<div class="form-group">
+    <label for="app_id" class="required">应用</label>
+    <select id="app_id" name="app_id" required>
+        <option value="66" selected>不夜</option>
+        <option value="70">小拾光</option>
+    </select>
+</div>
+{% endblock %}
+
+{% block submit_text %}确认修改{% endblock %}

@@ -1,0 +1,13 @@
+# Web框架
+Flask
+
+# 数据库
+SQLAlchemy
+PyMySQL
+
+# HTTP请求
+requests
+
+# WSGI服务器
+gunicorn
+gevent

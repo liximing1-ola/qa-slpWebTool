@@ -1,0 +1,44 @@
+{% extends "base_form.html" %}
+
+{% block title %}添加房间玩法{% endblock %}
+{% block form_title %}🎮 添加房间玩法{% endblock %}
+{% block form_desc %}为房间配置游戏玩法{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="rid" class="required">房间RID</label>
+    <input type="text" id="rid" name="rid" placeholder="请输入9位房间RID" maxlength="9" required>
+</div>
+<div class="form-group">
+    <label for="type" class="required">玩法类型</label>
+    <select id="type" name="type" required>
+        {% for row in data %}
+        <option value="{{ row[1] }}">{{ row[0] }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endblock %}
+
+{% block submit_text %}添加玩法{% endblock %}
+
+{% block extra_content %}
+<div class="info-box">
+    <h4>📋 可用玩法列表</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>玩法名称</th>
+                <th>类型标识</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+            <tr>
+                <td>{{ row[0] }}</td>
+                <td>{{ row[1] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

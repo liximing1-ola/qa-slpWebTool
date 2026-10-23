@@ -1,0 +1,25 @@
+{% extends "base_form.html" %}
+
+{% block title %}添加装扮碎片{% endblock %}
+{% block form_title %}💎 添加装扮碎片{% endblock %}
+{% block form_desc %}给用户增加装扮碎片数量{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="uid" class="required">用户UID</label>
+    <input type="text" id="uid" name="uid" placeholder="请输入9位用户UID" maxlength="9" required>
+</div>
+<div class="form-group">
+    <label for="app_id" class="required">应用</label>
+    <select id="app_id" name="app_id" required>
+        <option value="66" selected>不夜</option>
+        <option value="70">小拾光</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="num" class="required">碎片数量</label>
+    <input type="text" id="num" name="num" placeholder="请输入碎片数量" required>
+</div>
+{% endblock %}
+
+{% block submit_text %}确认添加{% endblock %}

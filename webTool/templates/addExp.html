@@ -1,0 +1,138 @@
+{% extends "base_form.html" %}
+
+{% block title %}增加经验值{% endblock %}
+{% block form_title %}📈 增加经验值{% endblock %}
+{% block form_desc %}VIP值 / 人气值 / 贵族等级{% endblock %}
+
+{% block extra_css %}
+<style>
+    #level_div {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    #level_div.show {
+        display: block;
+    }
+    #identity_div {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    #identity_div.show {
+        display: block;
+    }
+    #exp_div {
+        animation: fadeIn 0.3s ease;
+    }
+    #exp_div.hide {
+        display: none;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
+
+{% block form_content %}
+<div class="form-group">
+    <label for="exp_type" class="required">经验类型</label>
+    <select id="exp_type" name="exp_type" onchange="toggleLevel()" required>
+        <option value="vip">VIP值</option>
+        <option value="rq">人气值</option>
+        <option value="gz">贵族等级</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="app_id" class="required">应用</label>
+    <select id="app_id" name="app_id" required>
+        <option value="66" selected>不夜</option>
+        <option value="70">小拾光</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="uid" class="required">用户UID</label>
+    <input type="text" id="uid" name="uid" placeholder="请输入9位用户UID" maxlength="9" required>
+</div>
+<div class="form-group" id="exp_div">
+    <label for="exp" class="required">经验值</label>
+    <input type="text" id="exp" name="exp" placeholder="请输入经验值数值" required>
+</div>
+<div class="form-group" id="level_div">
+    <label for="level">贵族等级</label>
+    <select id="level" name="level">
+        <option value="0">无（0级）</option>
+        <option value="10">骑士/隐式（10级）</option>
+        <option value="20">男爵/轩主（20级）</option>
+        <option value="30">子爵/楼主（30级）</option>
+        <option value="40">伯爵/阁主（40级）</option>
+        <option value="50">侯爵/堂主（50级）</option>
+        <option value="60">公爵/宫主（60级）</option>
+        <option value="70">亲王/殿主（70级）</option>
+        <option value="80">国王/帝君（80级）</option>
+        <option value="90">皇帝/仙尊（90级）</option>
+        <option value="100">天神/天神（100级）</option>
+    </select>
+</div>
+<div class="form-group" id="identity_div">
+    <label for="identity_type">身份类型</label>
+    <select id="identity_type" name="identity_type">
+        <option value="user" selected>用户</option>
+        <option value="anchor">主播</option>
+    </select>
+</div>
+{% endblock %}
+
+{% block submit_text %}确认增加{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleLevel() {
+        var expType = document.getElementById('exp_type').value;
+        var levelDiv = document.getElementById('level_div');
+        var identityDiv = document.getElementById('identity_div');
+        var expDiv = document.getElementById('exp_div');
+        var expInput = document.getElementById('exp');
+        var appId = document.getElementById('app_id').value;
+        
+        if (expType === 'gz') {
+            // 选择贵族等级时
+            levelDiv.classList.add('show');
+            expDiv.classList.add('hide');  // 隐藏经验值输入框
+            expInput.removeAttribute('required');  // 移除required属性
+            // 仅在选择小拾光(app_id=70)且选择贵族等级时才显示身份选择
+            if (appId === '70') {
+                identityDiv.classList.add('show');
+            } else {
+                identityDiv.classList.remove('show');
+            }
+        } else {
+            // 选择VIP或人气时
+            levelDiv.classList.remove('show');
+            identityDiv.classList.remove('show');
+            expDiv.classList.remove('hide');  // 显示经验值输入框
+            expInput.setAttribute('required', 'required');  // 添加required属性
+        }
+    }
+    
+    // 监听app_id变化，动态显示/隐藏身份选择
+    function toggleIdentity() {
+        var expType = document.getElementById('exp_type').value;
+        var appId = document.getElementById('app_id').value;
+        var identityDiv = document.getElementById('identity_div');
+        
+        // 仅在选择贵族等级且选择小拾光时显示身份选择
+        if (expType === 'gz' && appId === '70') {
+            identityDiv.classList.add('show');
+        } else {
+            identityDiv.classList.remove('show');
+        }
+    }
+    
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleLevel();
+        // 为app_id添加change事件监听
+        document.getElementById('app_id').addEventListener('change', toggleIdentity);
+    });
+</script>
+{% endblock %}
