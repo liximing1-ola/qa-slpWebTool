@@ -14,7 +14,7 @@ class Config:
     HOST = os.getenv('FLASK_HOST', '127.0.0.1')
     
     # 基础路径
-    BASE_PATH = "/qatest2023"
+    BASE_PATH = "/web2026"
     
     # 数据库配置 - 从环境变量读取，如果没有则使用默认值
     DB_HOST = os.getenv('DB_HOST', '192.168.1.24')

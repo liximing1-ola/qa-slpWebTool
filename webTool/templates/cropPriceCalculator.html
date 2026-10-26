@@ -516,7 +516,7 @@
         showActionResult('正在执行农场作物成熟...', true);
 
         // 先查询 farm_id
-        fetch('/qatest2023/api/sql', {
+        fetch('/web2026/api/sql', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -531,7 +531,7 @@
             if (data.success && data.data && data.data.length > 0) {
                 const farmId = data.data[0].farm_id;
                 // 执行更新
-                return fetch('/qatest2023/api/sql', {
+                return fetch('/web2026/api/sql', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -569,7 +569,7 @@
         setButtonsDisabled(true);
         showActionResult('正在执行加工作物成熟...', true);
 
-        fetch('/qatest2023/api/sql', {
+        fetch('/web2026/api/sql', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -603,7 +603,7 @@
         setButtonsDisabled(true);
         showActionResult('正在执行钓鱼成熟...', true);
 
-        fetch('/qatest2023/api/sql', {
+        fetch('/web2026/api/sql', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

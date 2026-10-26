@@ -5,7 +5,7 @@ import requests
 app = Flask(__name__)
 mysql = mysql()
 
-base_path = "/qatest2023"
+base_path = "/web2026"
 
 
 @app.route(f'{base_path}/')

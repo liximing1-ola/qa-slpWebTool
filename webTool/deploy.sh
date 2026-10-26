@@ -13,7 +13,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # 配置变量（请根据实际情况修改）
-APP_NAME="qatest2023"
+APP_NAME="web2026"
 APP_DIR="/opt/${APP_NAME}"
 LOG_DIR="${APP_DIR}/log"
 PYTHON_ENV="testenv"
