@@ -1,0 +1,13 @@
+[Unit]
+Description=web2026 QA tool (gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/web2026/qa-slpWebTool/webTool
+ExecStart=/opt/web2026/qa-slpWebTool/webTool/venv/bin/gunicorn -b 0.0.0.0:9090 -w 2 --worker-class gevent app:app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,50 @@
+# Higress 网关路由：https://114.55.3.96/web2026/  ->  192.168.1.27:9090 (gunicorn)
+#
+# 说明：
+#   - 在 master 节点(192.168.1.23) 上执行：kubectl apply -f k8s-web2026-route.yaml
+#   - 与现有 act-spa-route 完全独立，不修改任何老路由，可一键回滚：
+#       kubectl delete ingress web2026-route -n higress-system
+#       kubectl delete svc,endpoints web2026-svc -n higress-system
+#   - 后端 192.168.1.27 上需由 systemd 守护 gunicorn 监听 0.0.0.0:9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web2026-svc
+  namespace: higress-system
+spec:
+  ports:
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: web2026-svc
+  namespace: higress-system
+subsets:
+  - addresses:
+      - ip: 192.168.1.27
+    ports:
+      - port: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web2026-route
+  namespace: higress-system
+  annotations:
+    higress.io/backend-protocol: HTTP
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - path: /web2026/
+            pathType: Prefix
+            backend:
+              service:
+                name: web2026-svc
+                port:
+                  number: 9090
