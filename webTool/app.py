@@ -2,11 +2,13 @@
 """
 Flask应用主入口 - 优化版本
 """
+import time
 import urllib3
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, g
 from urllib.parse import urlparse
 import requests
 
+import audit
 from config import current_config as config
 from database import db
 from validators import (
@@ -72,11 +74,25 @@ def _same_origin():
 
 
 @app.before_request
+def mark_audit_start():
+    """记录请求开始时间，供审计计算耗时"""
+    g._audit_start = time.time()
+    return None
+
+
+@app.before_request
 def block_cross_site_write():
     """跨站写操作防护（轻量 CSRF）：只拦「带了来源且来源不同」的写请求"""
     if request.method in WRITE_METHODS and not _same_origin():
         return jsonify({'success': False, 'message': '拒绝跨站请求'}), 403
     return None
+
+
+@app.after_request
+def record_audit(response):
+    """写操作审计：落 JSONL + 一行摘要到 journald（不记录 GET）"""
+    audit.record(response)
+    return response
 
 
 @app.after_request

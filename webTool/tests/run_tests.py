@@ -273,6 +273,55 @@ big = 'x' * (config.current_config.MAX_CONTENT_LENGTH + 1024)
 r = client.post('/web2026/add', data={'uid': '200252633', 'money': '1', 'pad': big}, headers=AJAX)
 check('请求体超限 413', r.status_code == 413 and r.json.get('success') is False, r.status_code)
 
+# ==================== 4.1 操作审计 ====================
+import json as _json
+import tempfile
+
+audit_dir = tempfile.mkdtemp(prefix='web2026-audit-')
+config.current_config.AUDIT_LOG_DIR = audit_dir
+
+
+def audit_lines():
+    path = os.path.join(audit_dir, 'audit-%s.jsonl' % time.strftime('%Y%m%d'))
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding='utf-8') as fp:
+        return [_json.loads(line) for line in fp if line.strip()]
+
+
+client.post('/web2026/add', data={'uid': '200252633', 'money': '100'}, headers=AJAX)
+entries = audit_lines()
+check('审计：记录写操作', len(entries) == 1, entries)
+entry = entries[-1] if entries else {}
+check('审计：动作名与 uid', entry.get('action') == '加钻石' and entry.get('uid') == '200252633', entry)
+check('审计：参数按白名单记录', (entry.get('params') or {}).get('money') == '100', entry.get('params'))
+check('审计：结果与状态码', entry.get('result') == 'ok' and entry.get('status') == 200, entry.get('result'))
+check('审计：含来源 IP 与耗时', bool(entry.get('ip')) and isinstance(entry.get('ms'), int),
+      (entry.get('ip'), entry.get('ms')))
+
+client.get('/web2026/')
+check('审计：GET 不记录', len(audit_lines()) == 1, len(audit_lines()))
+
+client.post('/web2026/add', data={'uid': '200252633', 'money': '1'},
+            headers={'Origin': 'http://evil.example.com'})
+check('审计：被拦截的请求也记录', audit_lines()[-1].get('result') == 'blocked', audit_lines()[-1])
+
+client.post('/web2026/api/sql', json={'sql': 'SELECT 1', 'token': 'should-not-log'}, headers=AJAX)
+last = audit_lines()[-1]
+check('审计：SQL 动作与语句', last.get('action') == '只读SQL查询'
+      and (last.get('params') or {}).get('sql') == 'SELECT 1', last.get('params'))
+check('审计：敏感字段不落盘', 'token' not in (last.get('params') or {}), last.get('params'))
+
+# 审计目录不可写（指到一个已存在的文件）时不能影响业务
+blocker = os.path.join(audit_dir, 'blocker-file')
+with open(blocker, 'w', encoding='utf-8') as fp:
+    fp.write('x')
+audit_backup = config.current_config.AUDIT_LOG_DIR
+config.current_config.AUDIT_LOG_DIR = blocker
+r = client.post('/web2026/add', data={'uid': '200252633', 'money': '100'}, headers=AJAX)
+check('审计：写失败不影响请求', r.status_code == 200 and r.json.get('success') is True, r.status_code)
+config.current_config.AUDIT_LOG_DIR = audit_backup
+
 appmod.db = real_db
 
 # 连接超时配置（用 mock 拦 create_engine，只看建池参数，不建真实连接）

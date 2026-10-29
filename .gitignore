@@ -25,3 +25,5 @@ Thumbs.db
 .env
 *.log
 log/
+# 操作审计日志（按天生成 audit-YYYYMMDD.jsonl）
+logs/

@@ -35,6 +35,12 @@ class Config:
 
     # 请求体大小上限（字节），防止超大表单把内存吃满
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 2 * 1024 * 1024))
+
+    # 操作审计日志目录（按天生成 audit-YYYYMMDD.jsonl），容器化时可指向 /var/log/web2026
+    AUDIT_LOG_DIR = os.getenv(
+        'AUDIT_LOG_DIR',
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    )
     
     # API配置
     API_BASE_URL = os.getenv('API_BASE_URL', 'https://127.0.0.1')
