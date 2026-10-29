@@ -31,9 +31,13 @@ jobs:
         working-directory: webTool
         run: python -c "import config, validators, tools, database, app; print('IMPORT_OK')"
 
-      - name: 回归测试（112 项断言，不连真实数据库）
+      - name: 回归测试（114 项断言，不连真实数据库）
         working-directory: webTool
         run: python tests/run_tests.py
+
+      - name: 入口自检（页面 200 / 卡片与路由对齐 / 无死链）
+        working-directory: webTool
+        run: python tools/check_entries.py
 
       - name: Shell 脚本语法
         run: |

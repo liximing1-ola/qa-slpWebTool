@@ -10,6 +10,8 @@ class Config:
     
     # Flask配置
     DEBUG = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
+    # Flask 自带的开发服务器参数，仅 `python app.py` 本地调试时生效；
+    # 线上由 systemd unit 的 `gunicorn -b 0.0.0.0:9090` 决定监听地址，与这里无关
     PORT = int(os.getenv('FLASK_PORT', 2023))
     HOST = os.getenv('FLASK_HOST', '127.0.0.1')
     
@@ -43,7 +45,6 @@ class Config:
     )
     
     # API配置
-    API_BASE_URL = os.getenv('API_BASE_URL', 'https://127.0.0.1')
     # 创建商业房间的 RPC 地址
     ROOM_CREATE_URL = os.getenv('ROOM_CREATE_URL', 'http://127.0.0.1/rpc/Room.Busi/CreateBusiness')
 

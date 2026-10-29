@@ -41,8 +41,19 @@ spec:
   rules:
     - http:
         paths:
+          # 带尾斜杠：正常访问 https://114.55.3.96/web2026/ 及其子路径
           - path: /web2026/
             pathType: Prefix
+            backend:
+              service:
+                name: web2026-svc
+                port:
+                  number: 9090
+          # 裸路径兜底：Ingress 的 Prefix 比较时会忽略尾斜杠（/web2026/ 本来就能匹配 /web2026），
+          # 这里显式补一条 Exact，只为把「手输不带斜杠」的入口写进配置便于排查；
+          # 转发到 Flask 后由 308 重定向到 /web2026/
+          - path: /web2026
+            pathType: Exact
             backend:
               service:
                 name: web2026-svc

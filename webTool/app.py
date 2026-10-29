@@ -107,6 +107,9 @@ def add_security_headers(response):
 @app.before_request
 def require_basic_auth():
     """平台基础认证：BASIC_AUTH_USER/PASSWORD 都配置时才启用，默认不改变现有访问方式"""
+    # 健康检查放行：否则开启认证后探活/监控会被 401，误报服务故障
+    if request.endpoint == 'healthz':
+        return None
     user = config.BASIC_AUTH_USER
     password = config.BASIC_AUTH_PASSWORD
     if not user or not password:

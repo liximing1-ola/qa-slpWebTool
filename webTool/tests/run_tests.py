@@ -38,7 +38,8 @@ r = client.get('/web2026/')
 html = r.get_data(as_text=True)
 check('首页返回 200', r.status_code == 200, r.status_code)
 check('CI 打包入口存在', 'http://172.19.37.71:8080/' in html)
-check('首页卡片数量 14', html.count('class="card"') == 14, html.count('class="card"'))
+check('首页卡片数量 15', html.count('class="card"') == 15, html.count('class="card"'))
+check('首页有「查询人员信息」入口', 'href="/web2026/sqlDemo"' in html)
 
 for path in ('/web2026/add', '/web2026/addExp', '/web2026/addCommodity', '/web2026/addfragment',
              '/web2026/createRoom', '/web2026/idChange', '/web2026/insertPerson', '/web2026/insertbroker',
@@ -227,6 +228,9 @@ import base64
 hdr = {'Authorization': 'Basic ' + base64.b64encode(b'u:p').decode()}
 r = client.get('/web2026/', headers=hdr)
 check('开启认证后带正确凭据 200', r.status_code == 200, r.status_code)
+r = client.get('/web2026/healthz')
+check('开启认证时 healthz 仍放行（给监控用）',
+      r.status_code == 200 and r.json.get('status') == 'ok', r.status_code)
 config.current_config.BASIC_AUTH_USER = ''
 config.current_config.BASIC_AUTH_PASSWORD = ''
 
