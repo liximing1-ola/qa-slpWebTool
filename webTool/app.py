@@ -3,7 +3,7 @@
 Flask应用主入口 - 优化版本
 """
 import urllib3
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import requests
 
 from config import current_config as config
@@ -17,6 +17,46 @@ from validators import (
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
+
+
+# 爵位成长值基数：按 (app_id, 身份类型) 分组，值与原配置保持一致
+TITLE_GROWTH_BASE = {
+    ('66', 'user'): {
+        "0": 0, "10": 0, "20": 200, "30": 800, "40": 2500,
+        "50": 10000, "60": 25000, "70": 65000, "80": 150000,
+        "90": 500000, "100": 2000000,
+    },
+    ('70', 'anchor'): {
+        "0": 0, "10": 0, "20": 200, "30": 1000, "40": 3000,
+        "50": 12000, "60": 30000, "70": 80000, "80": 200000,
+        "90": 600000, "100": 2600000,
+    },
+    ('70', 'user'): {
+        "0": 0, "10": 0, "20": 600, "30": 3000, "40": 10000,
+        "50": 40000, "60": 100000, "70": 250000, "80": 600000,
+        "90": 2000000, "100": 8000000,
+    },
+}
+# app_id=66 不区分身份类型，未匹配到的组合统一用这份默认值
+DEFAULT_TITLE_GROWTH = TITLE_GROWTH_BASE[('66', 'user')]
+
+
+def _is_ajax():
+    """是否为前端 AJAX 请求（决定返回 JSON 还是 HTML）"""
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
+@app.before_request
+def require_basic_auth():
+    """平台基础认证：BASIC_AUTH_USER/PASSWORD 都配置时才启用，默认不改变现有访问方式"""
+    user = config.BASIC_AUTH_USER
+    password = config.BASIC_AUTH_PASSWORD
+    if not user or not password:
+        return None
+    auth = request.authorization
+    if auth and auth.username == user and auth.password == password:
+        return None
+    return Response('Unauthorized', 401, {'WWW-Authenticate': 'Basic realm="web2026"'})
 
 
 # ==================== 路由定义 ====================
@@ -103,7 +143,7 @@ def create_room():
         return render_template('createRoom.html')
     
     data = request.validated_data
-    url = f"http://127.0.0.1/rpc/Room.Busi/CreateBusiness"
+    url = config.ROOM_CREATE_URL
     headers = {
         'X-RPCX-SerializeType': '1',
         'Content-Type': 'application/rpcx'
@@ -139,7 +179,9 @@ def pay():
         return render_template("pay.html")
     
     data = request.validated_data
-    db.pay(data['uid'], data['money'])
+    order_id = db.pay(data['uid'], data['money'])
+    if not order_id:
+        return handle_form_error("充值记录写入失败，请重试")
     db.insert_pay_change(data['uid'], data['money'])
     return handle_success("恭喜你，充值成功（money不会到账）！！！")
 
@@ -188,40 +230,10 @@ def add_exp():
         level = data.get('level', '0')
         app_id = data['app_id']
         identity_type = data.get('identity_type', 'user')
-        
-        # 根据 app_id 和 identity_type 区分配置
-        if app_id == 66:
-            # 不夜 - 按现有配置执行
-            config_map = {
-                "0": 0, "10": 0, "20": 200, "30": 800, "40": 2500,
-                "50": 10000, "60": 25000, "70": 65000, "80": 150000,
-                "90": 500000, "100": 2000000,
-            }
-        elif app_id == 70:
-            # 小拾光 - 根据身份类型区分配置
-            if identity_type == 'anchor':
-                # 主播配置（占位，后续手动修改）
-                config_map = {
-                    "0": 0, "10": 0, "20": 200, "30": 1000, "40": 3000,
-                    "50": 12000, "60": 30000, "70": 80000, "80": 200000,
-                    "90": 600000, "100": 2600000,
-                }
-            else:
-                # 用户配置（占位，后续手动修改）
-                config_map = {
-                    "0": 0, "10": 0, "20": 600, "30": 3000, "40": 10000,
-                    "50": 40000, "60": 100000, "70": 250000, "80": 600000,
-                    "90": 2000000, "100": 8000000,
-                }
-        else:
-            # 默认配置
-            config_map = {
-                "0": 0, "10": 0, "20": 200, "30": 800, "40": 2500,
-                "50": 10000, "60": 25000, "70": 65000, "80": 150000,
-                "90": 500000, "100": 2000000,
-            }
-        
-        base_exp = config_map.get(level, 0)
+
+        # 按 (app_id, 身份类型) 取对应的成长值基数，未匹配到的用默认配置
+        growth_map = TITLE_GROWTH_BASE.get((str(app_id), identity_type), DEFAULT_TITLE_GROWTH)
+        base_exp = growth_map.get(level, 0)
         total_exp = (base_exp + exp_val) * 100
         db.update_title(data['uid'], total_exp, level, data['app_id'])
     else:
@@ -261,13 +273,11 @@ def insert_broker():
     
     data = request.validated_data
     want_type = data.get('want_type', 'exit')
-    
-    print(f'[DEBUG] insert_broker 被调用: uid={data["uid"]}, bid={data["bid"]}, app_id={data["app_id"]}, want_type={want_type}')
-    
-    db.delete_broker_user(data['uid'], data['app_id'])
-    if want_type == 'join':
-        db.insert_join_broker(data['uid'], data['bid'], data['app_id'])
-    
+
+    # 删除旧关系与加入新公会在同一事务内，避免中途失败把用户误退会
+    if not db.switch_broker(data['uid'], data['bid'], data['app_id'], join=(want_type == 'join')):
+        return handle_form_error("公会操作失败，请重试")
+
     return handle_success(f"恭喜你，{want_type}成功，刷新下room.config即可！！！")
 
 
@@ -304,17 +314,25 @@ def crop_price():
 
 @app.route(f'{config.BASE_PATH}/api/sql', methods=['POST'])
 def execute_sql():
-    """执行SQL查询"""
-    data = request.get_json()
+    """执行SQL查询（只读；需配置 SQL_API_TOKEN 才开放，未配置时接口关闭）"""
+    expected_token = config.SQL_API_TOKEN
+    if not expected_token:
+        return jsonify({'success': False, 'message': '该接口未开放'}), 403
+    if request.headers.get('X-API-Token') != expected_token:
+        return jsonify({'success': False, 'message': '无权访问'}), 401
+
+    data = request.get_json(silent=True)
     if not data or 'sql' not in data:
         return jsonify({'success': False, 'message': '缺少SQL语句'}), 400
 
-    sql = data['sql']
     try:
-        result = db.execute_sql(sql)
+        result = db.execute_sql(data['sql'])
         return jsonify({'success': True, 'data': result})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        print(f'执行SQL失败: {e}')
+        return jsonify({'success': False, 'message': '执行失败，请查看服务端日志'}), 500
 
 
 # ==================== 错误处理 ====================
@@ -322,12 +340,16 @@ def execute_sql():
 @app.errorhandler(404)
 def not_found(error):
     """404错误处理"""
+    if _is_ajax():
+        return jsonify({'success': False, 'message': '页面不存在'}), 404
     return handle_form_error("页面不存在"), 404
 
 
 @app.errorhandler(500)
 def internal_error(error):
     """500错误处理"""
+    if _is_ajax():
+        return jsonify({'success': False, 'message': '服务器内部错误'}), 500
     return handle_form_error("服务器内部错误"), 500
 
 

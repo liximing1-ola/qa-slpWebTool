@@ -13,9 +13,22 @@ from config import current_config as config
 from tools import randname, randid
 
 
+# 房间加人时循环使用的种子用户（数量即「房间加人」的真实上限）
+ROOM_SEED_UIDS = [
+    200252633, 200255313, 200255189, 200253752, 200252282,
+    200254479, 200254521, 200254593, 200252041, 200252274,
+]
+
+# 默认发放的商品ID
+DEFAULT_COMMODITY_CIDS = [329, 330, 331, 339, 1090, 1839, 2000, 19593, 20283, 27361]
+
+
 class Database:
     """数据库操作类 - 使用连接池和参数化查询"""
-    
+
+    # /api/sql 允许的只读语句前缀
+    READ_ONLY_PREFIXES = ('SELECT', 'SHOW', 'DESC', 'DESCRIBE', 'EXPLAIN')
+
     _instance = None
     
     def __new__(cls):
@@ -64,12 +77,27 @@ class Database:
             if conn:
                 conn.close()
     
+    @contextmanager
+    def transaction(self):
+        """单一事务：多条语句要么全部生效，要么全部回滚"""
+        conn = self.engine.connect()
+        trans = conn.begin()
+        try:
+            yield conn
+            trans.commit()
+        except Exception as e:
+            trans.rollback()
+            print(f"事务执行失败，已回滚: {e}")
+            raise
+        finally:
+            conn.close()
+
     def execute(self, sql, params=None):
-        """执行SQL语句（参数化查询）"""
+        """执行SQL语句（参数化查询），返回影响行数"""
         with self.get_connection() as conn:
             result = conn.execute(text(sql), params or {})
             conn.commit()
-            return result
+            return result.rowcount
     
     def query(self, sql, params=None):
         """查询操作"""
@@ -95,37 +123,38 @@ class Database:
         return self.execute(sql, params)
 
     def execute_sql(self, sql):
-        """执行动态SQL（用于快捷操作）"""
-        sql = sql.strip()
-        is_select = sql.upper().startswith('SELECT')
+        """执行动态SQL（仅允许只读查询，防止误操作/恶意修改数据）"""
+        sql = (sql or '').strip().rstrip(';').strip()
+        if not sql:
+            raise ValueError('SQL 不能为空')
+        first_word = sql.lstrip('(').split(None, 1)[0].upper()
+        if first_word not in self.READ_ONLY_PREFIXES:
+            raise ValueError('仅支持只读查询（SELECT/SHOW/DESC/EXPLAIN）')
 
         with self.get_connection() as conn:
             result = conn.execute(text(sql))
-            if is_select:
-                rows = result.fetchall()
-                # 转换为字典列表
-                columns = result.keys()
-                return [dict(zip(columns, row)) for row in rows]
-            else:
-                conn.commit()
-                return {'rowcount': result.rowcount}
+            rows = result.fetchall()
+            columns = result.keys()
+            return [dict(zip(columns, row)) for row in rows]
 
     # ==================== 业务方法 ====================
     
-    def update_money(self, uid, money=0, money_cash=0, money_cash_b=0, money_b=0, 
-                     gold_coin=0, money_debts=0):
-        """更新用户金额 - 使用参数化查询防止SQL注入"""
-        sql = """
-            UPDATE xs_user_money 
-            SET money=:money, money_b=:money_b, money_cash=:money_cash, 
-                money_cash_b=:money_cash_b, gold_coin=:gold_coin, money_debts=:money_debts
-            WHERE uid=:uid LIMIT 1
-        """
-        params = {
+    def update_money(self, uid, money=None, money_cash=None, money_cash_b=None, money_b=None,
+                     gold_coin=None, money_debts=None):
+        """更新用户金额 - 只更新显式传入的字段，未传字段保持原值"""
+        values = {
             'money': money, 'money_b': money_b, 'money_cash': money_cash,
             'money_cash_b': money_cash_b, 'gold_coin': gold_coin,
-            'money_debts': money_debts, 'uid': uid
+            'money_debts': money_debts,
         }
+        sets = [f"{name}=:{name}" for name, val in values.items() if val is not None]
+        if not sets:
+            print('更新金额失败: 没有需要更新的字段')
+            return None
+
+        sql = f"UPDATE xs_user_money SET {', '.join(sets)} WHERE uid=:uid"
+        params = {k: v for k, v in values.items() if v is not None}
+        params['uid'] = uid
         try:
             return self.update(sql, params)
         except Exception as e:
@@ -161,21 +190,23 @@ class Database:
             return False
     
     def insert_people(self, num, rid, app_id=66):
-        """插入房间人员"""
-        positions = list(range(int(num)))
-        uids = [
-            200252633, 200255313, 200255189, 200253752, 200252282,
-            200254479, 200254521, 200254593, 200252041, 200252274,
-        ]
-        
+        """插入房间人员 - 单事务批量更新"""
+        num = int(num)
+        if num > len(ROOM_SEED_UIDS):
+            print(f'插入人员失败: 最多支持 {len(ROOM_SEED_UIDS)} 人，收到 {num}')
+            return False
+
+        sql = """
+            UPDATE xs_chatroom_config
+            SET uid = :uid
+            WHERE rid = :rid AND position = :position AND app_id = :app_id
+        """
         try:
-            for position, uid in zip(positions, uids):
-                sql = """
-                    UPDATE xs_chatroom_config 
-                    SET uid = :uid 
-                    WHERE rid = :rid AND position = :position AND app_id = :app_id
-                """
-                self.update(sql, {'uid': uid, 'rid': rid, 'position': position, 'app_id': app_id})
+            with self.transaction() as conn:
+                for position, uid in enumerate(ROOM_SEED_UIDS[:num]):
+                    conn.execute(text(sql), {
+                        'uid': uid, 'rid': rid, 'position': position, 'app_id': app_id
+                    })
             return True
         except Exception as e:
             print(f'插入人员失败: {e}')
@@ -250,40 +281,23 @@ class Database:
             print(f'消费变更记录插入失败: {e}')
             return None
     
-    def delete_commodity(self, uid):
-        """删除用户商品"""
-        sql = "DELETE FROM xs_user_commodity WHERE uid = :uid"
-        try:
-            self.execute(sql, {'uid': uid})
-            # 验证删除
-            check_sql = "SELECT * FROM xs_user_commodity WHERE uid = :uid LIMIT 1"
-            result = self.query_one(check_sql, {'uid': uid})
-            if result is None:
-                print('删除成功')
-            return True
-        except Exception as e:
-            print(f'删除失败: {e}')
-            return False
-    
     def add_commodity(self, uid, cids=None, num=3):
-        """添加商品"""
+        """添加商品 - 删除旧数据与批量插入在同一事务内，避免背包被删一半"""
         if cids is None:
-            cids = [329, 330, 331, 339, 1090, 1839, 2000, 19593, 20283, 27361]
-        
-        # 先删除旧数据
-        self.delete_commodity(uid)
-        
+            cids = DEFAULT_COMMODITY_CIDS
+
+        dateline = str(int(time.time()))
         try:
-            dateline = str(int(time.time()))
-            for cid in cids:
-                sql = """
-                    INSERT INTO xs_user_commodity 
-                    (uid, cid, state, num, period_end, used, in_use, dateline)
-                    VALUES (:uid, :cid, 0, :num, 0, 0, 0, :dateline)
-                """
-                self.insert(sql, {
-                    'uid': uid, 'cid': int(cid), 'num': int(num), 'dateline': dateline
-                })
+            with self.transaction() as conn:
+                conn.execute(text("DELETE FROM xs_user_commodity WHERE uid = :uid"), {'uid': uid})
+                for cid in cids:
+                    conn.execute(text("""
+                        INSERT INTO xs_user_commodity
+                        (uid, cid, state, num, period_end, used, in_use, dateline)
+                        VALUES (:uid, :cid, 0, :num, 0, 0, 0, :dateline)
+                    """), {
+                        'uid': uid, 'cid': int(cid), 'num': int(num), 'dateline': dateline
+                    })
             return True
         except Exception as e:
             print(f'添加商品失败: {e}')
@@ -326,22 +340,21 @@ class Database:
             return None
     
     def update_user_fragment(self, uid, fragment_num, app_id=66):
-        """更新用户碎片"""
+        """更新用户碎片 - 删除与插入在同一事务内"""
         update_time = int(time.time())
+        delete_sql = "DELETE FROM xs_user_fragment WHERE uid = :uid AND app_id = :app_id"
+        insert_sql = """
+            INSERT INTO xs_user_fragment
+            (uid, app_id, star_score, fragment_num, update_time, create_time)
+            VALUES (:uid, :app_id, 0, :fragment_num, :update_time, :update_time)
+        """
         try:
-            # 删除旧记录
-            delete_sql = "DELETE FROM xs_user_fragment WHERE uid = :uid AND app_id = :app_id"
-            self.execute(delete_sql, {'uid': uid, 'app_id': app_id})
-            
-            # 插入新记录
-            insert_sql = """
-                INSERT INTO xs_user_fragment 
-                (uid, app_id, star_score, fragment_num, update_time, create_time)
-                VALUES (:uid, :app_id, 0, :fragment_num, :update_time, :update_time)
-            """
-            self.insert(insert_sql, {
-                'uid': uid, 'app_id': app_id, 'fragment_num': fragment_num, 'update_time': update_time
-            })
+            with self.transaction() as conn:
+                conn.execute(text(delete_sql), {'uid': uid, 'app_id': app_id})
+                conn.execute(text(insert_sql), {
+                    'uid': uid, 'app_id': app_id, 'fragment_num': fragment_num,
+                    'update_time': update_time
+                })
             return True
         except Exception as e:
             print(f'更新碎片失败: {e}')
@@ -361,45 +374,30 @@ class Database:
             print(f'查询礼物信息失败: {e}')
             return []
     
-    def insert_join_broker(self, uid, bid=200000030, app_id=66):
-        """加入公会"""
+    def switch_broker(self, uid, bid=200000030, app_id=66, join=True):
+        """公会操作：退会/换会 - 删除与加入在同一事务内，插入失败不会把用户误退会"""
         dateline = apply_time = int(time.time())
-        sql = """
+        delete_sql = "DELETE FROM xs_broker_user WHERE uid = :uid AND app_id = :app_id"
+        insert_sql = """
             INSERT INTO xianshi.xs_broker_user 
             (bid, uid, app_id, deleted, dateline, state, `exit`, pack_cal, sign, corp_cal, 
              corp_status, is_risk, apply_time)
             VALUES 
             (:bid, :uid, :app_id, 0, :dateline, 1, 0, 0, 0, 0, 0, 0, :apply_time)
         """
-        params = {
-            'bid': bid, 'uid': uid, 'app_id': app_id, 'dateline': dateline, 'apply_time': apply_time
-        }
         try:
-            print(f'[DEBUG] 插入公会记录: uid={uid}, bid={bid}, app_id={app_id}')
-            result = self.insert(sql, params)
-            print(f'[DEBUG] 插入结果: {result}')
-            return result
+            with self.transaction() as conn:
+                conn.execute(text(delete_sql), {'uid': uid, 'app_id': app_id})
+                if join:
+                    conn.execute(text(insert_sql), {
+                        'bid': bid, 'uid': uid, 'app_id': app_id,
+                        'dateline': dateline, 'apply_time': apply_time
+                    })
+            return True
         except Exception as e:
-            print(f'[ERROR] 加入公会失败: {e}')
-            print(f'[ERROR] SQL参数: {params}')
-            import traceback
-            traceback.print_exc()
-            return None
-    
-    def delete_broker_user(self, uid, app_id=66):
-        """删除公会用户"""
-        sql = "DELETE FROM xs_broker_user WHERE uid = :uid AND app_id = :app_id"
-        params = {'uid': uid, 'app_id': app_id}
-        try:
-            print(f'[DEBUG] 删除公会用户: uid={uid}, app_id={app_id}')
-            result = self.execute(sql, params)
-            print(f'[DEBUG] 删除结果: {result}')
-            return result
-        except Exception as e:
-            print(f'[ERROR] 删除公会用户失败: {e}')
-            print(f'[ERROR] SQL参数: {params}')
-            return None
-    
+            print(f'[ERROR] 公会操作失败（已回滚）: {e}')
+            return False
+
     def select_games_info(self):
         """查询游戏信息"""
         sql = """

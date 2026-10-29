@@ -31,12 +31,22 @@ class Config:
     
     # API配置
     API_BASE_URL = os.getenv('API_BASE_URL', 'https://127.0.0.1')
-    
+    # 创建商业房间的 RPC 地址
+    ROOM_CREATE_URL = os.getenv('ROOM_CREATE_URL', 'http://127.0.0.1/rpc/Room.Busi/CreateBusiness')
+
+    # /api/sql 接口访问口令（为空则接口关闭，不对外提供服务）
+    SQL_API_TOKEN = os.getenv('SQL_API_TOKEN', '')
+
+    # 平台基础认证（用户名和密码都配置才生效，留空则不启用）
+    BASIC_AUTH_USER = os.getenv('BASIC_AUTH_USER', '')
+    BASIC_AUTH_PASSWORD = os.getenv('BASIC_AUTH_PASSWORD', '')
+
     # 验证规则
     UID_LENGTH = 9
     MAX_MONEY = 2000000000
     MAX_RECHARGE = 100000000
-    MAX_PEOPLE_NUM = 12
+    # 房间加人上限，必须与 database.ROOM_SEED_UIDS 的数量一致
+    MAX_PEOPLE_NUM = 10
 
 
 class DevelopmentConfig(Config):

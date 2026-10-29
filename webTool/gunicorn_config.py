@@ -27,8 +27,10 @@ pidfile = "log/gunicorn.pid"
 accesslog = "log/access.log"
 #启动和调用出现错误的日志地址
 errorlog = "log/debug.log"
-# 设置守护进程,将进程交给supervisor管理
-daemon = True
+# 不启用守护进程：由 systemd 托管（生产）或前台运行（调试），避免进程被偷偷后台化
+# 注意：systemd 单元直接使用命令行参数启动，本文件仅供参考
+# 日志目录需已存在（log/），否则 gunicorn 不启动
+daemon = False
 # 启动的进程数
 #workers = int(multiprocessing.cpu_count()/2)
 workers = 2

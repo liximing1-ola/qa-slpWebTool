@@ -41,7 +41,7 @@ def validate_money(money, max_amount=None):
         raise ValidationError("金额必须是数字")
     if amount < 0:
         raise ValidationError("金额不能为负数")
-    if max_amount and amount > max_amount:
+    if max_amount is not None and amount > max_amount:
         raise ValidationError(f"金额不能超过{max_amount}")
     return amount
 
@@ -58,7 +58,7 @@ def validate_num(num, max_val=None, default=None):
         raise ValidationError("数量必须是数字")
     if val < 0:
         raise ValidationError("数量不能为负数")
-    if max_val and val > max_val:
+    if max_val is not None and val > max_val:
         raise ValidationError(f"数量不能超过{max_val}")
     return val
 
