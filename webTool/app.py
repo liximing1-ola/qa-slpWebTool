@@ -9,8 +9,9 @@ import requests
 from config import current_config as config
 from database import db
 from validators import (
-    validate_uid, validate_rid, validate_money, validate_num, 
-    validate_cids, handle_form_error, handle_success, form_validator
+    validate_uid, validate_rid, validate_money, validate_num,
+    validate_cids, handle_form_error, handle_success, form_validator,
+    ValidationError
 )
 
 # 禁用SSL警告
@@ -310,6 +311,27 @@ def crop_price():
 
     # POST请求处理表单提交（保存配置）
     return handle_success("配置已保存！！！")
+
+
+@app.route(f'{config.BASE_PATH}/api/cropMature', methods=['POST'])
+def crop_mature():
+    """一键成熟（农场/加工/钓鱼）：服务端固定 SQL + 参数化，替代前端拼接 SQL 调 /api/sql"""
+    data = request.get_json(silent=True) or {}
+    action = data.get('action')
+    if action not in db.CROP_MATURE_ACTIONS:
+        return jsonify({'success': False, 'message': '不支持的操作类型'}), 400
+
+    try:
+        uid = validate_uid(str(data.get('uid', '')).strip())
+    except ValidationError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    result = db.crop_mature(action, uid)
+    if result is None:
+        return jsonify({'success': False, 'message': '未找到该用户的农场信息'}), 404
+    if result is False:
+        return jsonify({'success': False, 'message': '执行失败，请查看服务端日志'}), 500
+    return jsonify({'success': True, 'rowcount': result, 'message': f'影响 {result} 行'})
 
 
 @app.route(f'{config.BASE_PATH}/api/sql', methods=['POST'])

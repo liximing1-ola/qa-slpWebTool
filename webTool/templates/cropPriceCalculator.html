@@ -507,6 +507,18 @@
         });
     }
 
+    // 调用后端一键成熟接口（SQL 固定在服务端，前端只传 uid + 操作类型）
+    function postCropMature(uid, action) {
+        return fetch('/web2026/api/cropMature', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ uid: uid, action: action })
+        }).then(response => response.json());
+    }
+
     // 1. 农场作物成熟
     function executeFarmMature() {
         const uid = getUid();
@@ -515,37 +527,7 @@
         setButtonsDisabled(true);
         showActionResult('正在执行农场作物成熟...', true);
 
-        // 先查询 farm_id
-        fetch('/web2026/api/sql', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({
-                sql: `select belong_uid as uid,id as farm_id from starship.xs_farm_info where belong_uid =${uid};`
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.data && data.data.length > 0) {
-                const farmId = data.data[0].farm_id;
-                // 执行更新
-                return fetch('/web2026/api/sql', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: JSON.stringify({
-                        sql: `update starship.xs_farm_plot set crop_state1_time=UNIX_TIMESTAMP()-3600 ,crop_state2_time=UNIX_TIMESTAMP()-3600 where farm_id=${farmId};`
-                    })
-                });
-            } else {
-                throw new Error('未找到该用户的农场信息');
-            }
-        })
-        .then(response => response.json())
+        postCropMature(uid, 'farm')
         .then(data => {
             if (data.success) {
                 showActionResult('✅ 农场作物成熟成功！', true);
@@ -569,17 +551,7 @@
         setButtonsDisabled(true);
         showActionResult('正在执行加工作物成熟...', true);
 
-        fetch('/web2026/api/sql', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({
-                sql: `update starship.xs_farm_machine set status=2 where belong_uid=${uid} and fruit_id>0;`
-            })
-        })
-        .then(response => response.json())
+        postCropMature(uid, 'machine')
         .then(data => {
             if (data.success) {
                 showActionResult('✅ 加工作物成熟成功！', true);
@@ -603,17 +575,7 @@
         setButtonsDisabled(true);
         showActionResult('正在执行钓鱼成熟...', true);
 
-        fetch('/web2026/api/sql', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({
-                sql: `UPDATE starship.xs_fishpond_user set fishing_state_time=UNIX_TIMESTAMP()-3600 where belong_uid=${uid};`
-            })
-        })
-        .then(response => response.json())
+        postCropMature(uid, 'fish')
         .then(data => {
             if (data.success) {
                 showActionResult('✅ 钓鱼成熟成功！', true);

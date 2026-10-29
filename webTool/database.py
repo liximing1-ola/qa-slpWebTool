@@ -398,6 +398,49 @@ class Database:
             print(f'[ERROR] 公会操作失败（已回滚）: {e}')
             return False
 
+    # 一键成熟支持的操作类型
+    CROP_MATURE_ACTIONS = ('farm', 'machine', 'fish')
+
+    def crop_mature(self, action, uid):
+        """一键成熟：farm=农场作物 machine=加工作物 fish=钓鱼
+
+        固定 SQL + 参数化执行（原先前端是把 SQL 拼好发给 /api/sql）。
+        返回：影响行数；None=未找到农场；False=执行失败。
+        """
+        if action not in self.CROP_MATURE_ACTIONS:
+            raise ValueError('不支持的操作类型')
+
+        try:
+            with self.transaction() as conn:
+                if action == 'farm':
+                    row = conn.execute(text(
+                        "SELECT id AS farm_id FROM starship.xs_farm_info WHERE belong_uid = :uid"
+                    ), {'uid': uid}).fetchone()
+                    if row is None:
+                        return None
+                    result = conn.execute(text("""
+                        UPDATE starship.xs_farm_plot
+                        SET crop_state1_time = UNIX_TIMESTAMP() - 3600,
+                            crop_state2_time = UNIX_TIMESTAMP() - 3600
+                        WHERE farm_id = :farm_id
+                    """), {'farm_id': row[0]})
+                elif action == 'machine':
+                    result = conn.execute(text("""
+                        UPDATE starship.xs_farm_machine
+                        SET status = 2
+                        WHERE belong_uid = :uid AND fruit_id > 0
+                    """), {'uid': uid})
+                else:
+                    result = conn.execute(text("""
+                        UPDATE starship.xs_fishpond_user
+                        SET fishing_state_time = UNIX_TIMESTAMP() - 3600
+                        WHERE belong_uid = :uid
+                    """), {'uid': uid})
+                return result.rowcount
+        except Exception as e:
+            print(f'一键成熟失败({action}, uid={uid}): {e}')
+            return False
+
     def select_games_info(self):
         """查询游戏信息"""
         sql = """
