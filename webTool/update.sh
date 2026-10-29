@@ -129,7 +129,15 @@ if [ -n "$(git status --porcelain --untracked-files=normal | grep '^??')" ]; the
 fi
 
 REMOTE_COMMIT="$(git ls-remote origin "refs/heads/$CURRENT_BRANCH" 2>/dev/null | awk '{print substr($1,1,7)}')"
-info "远端 $CURRENT_BRANCH: ${REMOTE_COMMIT:-未知}"
+if [ -z "$REMOTE_COMMIT" ]; then
+    warn "无法访问远端仓库（git ls-remote 无响应）"
+    warn "常见原因：服务器到 GitHub 的网络不通、需要代理，或凭据失效——不是分支分叉"
+    warn "自查：curl -I --max-time 8 https://github.com ；git config --global --get http.proxy"
+    warn "应急（服务器连不上 GitHub 时）：本机 git bundle create 打包 -> scp 到服务器 ->"
+    warn "    git pull /tmp/xxx.bundle $CURRENT_BRANCH   （详见部署文档 6.7）"
+    error "已中止更新，未改动任何代码（服务仍在运行旧版本）"
+fi
+info "远端 $CURRENT_BRANCH: $REMOTE_COMMIT"
 
 # 优先用已跟踪的上游分支，未配置上游时显式指定 origin + 当前分支
 if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
@@ -139,7 +147,10 @@ else
 fi
 info "拉取代码: ${PULL_CMD[*]} ..."
 if ! "${PULL_CMD[@]}"; then
-    error "git pull 失败：可能是本地与远端分叉。请手动处理后再执行本脚本（不要在此状态下强制 reset）"
+    if [ -z "$(git ls-remote origin "refs/heads/$CURRENT_BRANCH" 2>/dev/null)" ]; then
+        error "git pull 失败：当前无法连接远端仓库（网络/代理问题），请先确认连通性"
+    fi
+    error "git pull 失败：远端可访问，本地与远端可能已分叉。请手动确认（git status / git log --oneline -5）后再处理；不要直接 git reset --hard"
 fi
 
 NEW_COMMIT="$(git rev-parse --short HEAD)"
