@@ -15,6 +15,12 @@ set -uo pipefail
 SERVICE_NAME="web2026"                       # systemd 服务名
 HEALTH_URL="http://127.0.0.1:9090/web2026/"  # 本机健康检查地址
 HEALTH_RETRY=10                              # 健康检查重试次数（每秒一次）
+# 这台机器到 GitHub 会抖：常见「连 130 秒后超时，下一次就通」。
+# 给单次探测加硬性超时并重试，避免一次抖动就判定断网。
+REMOTE_PROBE_TIMEOUT=30                      # 单次探测远端的最长等待（秒）
+REMOTE_PROBE_TRIES=3                         # 探测重试次数
+REMOTE_PROBE_DELAY=5                         # 每次重试间隔（秒）
+PULL_TRIES=3                                 # git pull 重试次数
 
 # ---------------- 颜色 ----------------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -58,6 +64,35 @@ CURRENT_COMMIT="$(git rev-parse --short HEAD)"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 info "项目目录: $APP_DIR"
 info "当前分支: $CURRENT_BRANCH    当前提交: $CURRENT_COMMIT"
+
+# ---------------- 远端探测 ----------------
+TIMEOUT_BIN="$(command -v timeout 2>/dev/null || true)"
+
+# 单次 ls-remote（带上限）；timeout 不可用时不限制
+probe_once() {
+    if [ -n "$TIMEOUT_BIN" ]; then
+        "$TIMEOUT_BIN" "$REMOTE_PROBE_TIMEOUT" git ls-remote origin "refs/heads/$CURRENT_BRANCH" 2>/dev/null
+    else
+        git ls-remote origin "refs/heads/$CURRENT_BRANCH" 2>/dev/null
+    fi
+}
+
+# 多次探测，成功时把短 sha 打到 stdout；warn 一律走 stderr，不能被命令替换捕获
+probe_remote() {
+    local i result
+    for i in $(seq 1 "$REMOTE_PROBE_TRIES"); do
+        result="$(probe_once | awk '{print substr($1,1,7)}')"
+        if [ -n "$result" ]; then
+            echo "$result"
+            return 0
+        fi
+        if [ "$i" -lt "$REMOTE_PROBE_TRIES" ]; then
+            warn "远端无响应，${REMOTE_PROBE_DELAY} 秒后重试（第 $i/$REMOTE_PROBE_TRIES 次）" >&2
+            sleep "$REMOTE_PROBE_DELAY"
+        fi
+    done
+    return 1
+}
 
 # ---------------- 健康检查 ----------------
 health_check() {
@@ -128,13 +163,14 @@ if [ -n "$(git status --porcelain --untracked-files=normal | grep '^??')" ]; the
     git status --porcelain --untracked-files=normal | grep '^??' | sed 's/^/    /'
 fi
 
-REMOTE_COMMIT="$(git ls-remote origin "refs/heads/$CURRENT_BRANCH" 2>/dev/null | awk '{print substr($1,1,7)}')"
-if [ -z "$REMOTE_COMMIT" ]; then
-    warn "无法访问远端仓库（git ls-remote 无响应）"
+if ! REMOTE_COMMIT="$(probe_remote)"; then
+    warn "无法访问远端仓库（已探测 $REMOTE_PROBE_TRIES 次，均无响应）"
     warn "常见原因：服务器到 GitHub 的网络不通、需要代理，或凭据失效——不是分支分叉"
     warn "自查：curl -I --max-time 8 https://github.com ；git config --global --get http.proxy"
-    warn "应急（服务器连不上 GitHub 时）：本机 git bundle create 打包 -> scp 到服务器 ->"
-    warn "    git pull /tmp/xxx.bundle $CURRENT_BRANCH   （详见部署文档 6.7）"
+    warn "换条链路（本机能出网时，推荐）：在本机执行"
+    warn "    python webTool/tools/make_patch.py --from $(git rev-parse --short HEAD)"
+    warn "  再把生成的 dist/patch-*.sh 整段粘贴到本终端（不访问 GitHub，详见部署文档第九章）"
+    warn "手工 bundle：本机 git bundle create 打包 -> scp 到服务器 -> git pull /tmp/xxx.bundle $CURRENT_BRANCH"
     error "已中止更新，未改动任何代码（服务仍在运行旧版本）"
 fi
 info "远端 $CURRENT_BRANCH: $REMOTE_COMMIT"
@@ -145,10 +181,21 @@ if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
 else
     PULL_CMD=(git pull --ff-only origin "$CURRENT_BRANCH")
 fi
-info "拉取代码: ${PULL_CMD[*]} ..."
-if ! "${PULL_CMD[@]}"; then
-    if [ -z "$(git ls-remote origin "refs/heads/$CURRENT_BRANCH" 2>/dev/null)" ]; then
-        error "git pull 失败：当前无法连接远端仓库（网络/代理问题），请先确认连通性"
+PULL_OK=0
+for i in $(seq 1 "$PULL_TRIES"); do
+    info "拉取代码: ${PULL_CMD[*]} ...（第 $i/$PULL_TRIES 次）"
+    if "${PULL_CMD[@]}"; then
+        PULL_OK=1
+        break
+    fi
+    if [ "$i" -lt "$PULL_TRIES" ]; then
+        warn "本次拉取失败，${REMOTE_PROBE_DELAY} 秒后重试"
+        sleep "$REMOTE_PROBE_DELAY"
+    fi
+done
+if [ "$PULL_OK" -ne 1 ]; then
+    if ! probe_remote >/dev/null; then
+        error "git pull 失败：当前无法连接远端仓库（网络/代理问题，已重试 $PULL_TRIES 次），请先确认连通性"
     fi
     error "git pull 失败：远端可访问，本地与远端可能已分叉。请手动确认（git status / git log --oneline -5）后再处理；不要直接 git reset --hard"
 fi
