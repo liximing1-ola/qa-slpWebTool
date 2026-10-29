@@ -56,10 +56,23 @@ class Database:
             max_overflow=config.DB_POOL_MAX_OVERFLOW,
             pool_recycle=config.DB_POOL_RECYCLE,
             pool_pre_ping=True,  # 自动检测断开的连接
+            # 数据库不可达 / 连接池耗尽时不要无限等待，避免把 worker 卡死
+            pool_timeout=config.DB_POOL_TIMEOUT,
+            connect_args={'connect_timeout': config.DB_CONNECT_TIMEOUT},
             echo=False
         )
         self._initialized = True
         print("数据库连接池初始化成功")
+
+    def ping(self):
+        """健康检查：数据库是否可达（不抛异常）"""
+        try:
+            with self.engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+            return True
+        except Exception as e:
+            print(f'数据库健康检查失败: {e}')
+            return False
     
     @contextmanager
     def get_connection(self):
@@ -271,7 +284,6 @@ class Database:
             VALUES
             (0, :uid, :timestamp, :money, 'pay', '', '模拟打赏', 0)
         """
-        print(sql)
         try:
             result = self.insert(sql, {
                 'uid': uid, 'timestamp': int(time.time()), 'money': money

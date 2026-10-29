@@ -7,7 +7,7 @@ Type=simple
 WorkingDirectory=/opt/web2026/qa-slpWebTool/webTool
 # 读取服务器上的 .env；文件不存在时也不影响启动（前面的 - 号表示可选）
 EnvironmentFile=-/opt/web2026/qa-slpWebTool/webTool/.env
-ExecStart=/opt/web2026/qa-slpWebTool/webTool/venv/bin/gunicorn -b 0.0.0.0:9090 -w 2 --worker-class gevent app:app
+ExecStart=/opt/web2026/qa-slpWebTool/webTool/venv/bin/gunicorn -b 0.0.0.0:9090 -w 2 --worker-class gevent --timeout 30 --graceful-timeout 30 --max-requests 2000 --max-requests-jitter 200 --access-logfile - --error-logfile - app:app
 Restart=always
 RestartSec=3
 

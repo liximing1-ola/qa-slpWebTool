@@ -28,6 +28,13 @@ class Config:
     DB_POOL_SIZE = int(os.getenv('DB_POOL_SIZE', 5))
     DB_POOL_MAX_OVERFLOW = int(os.getenv('DB_POOL_MAX_OVERFLOW', 10))
     DB_POOL_RECYCLE = int(os.getenv('DB_POOL_RECYCLE', 3600))
+    # 建立连接的超时时间（秒），数据库不可达时不要一直挂着
+    DB_CONNECT_TIMEOUT = int(os.getenv('DB_CONNECT_TIMEOUT', 5))
+    # 连接池耗尽的等待时间（秒），超时直接报错
+    DB_POOL_TIMEOUT = int(os.getenv('DB_POOL_TIMEOUT', 10))
+
+    # 请求体大小上限（字节），防止超大表单把内存吃满
+    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 2 * 1024 * 1024))
     
     # API配置
     API_BASE_URL = os.getenv('API_BASE_URL', 'https://127.0.0.1')

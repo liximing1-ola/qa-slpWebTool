@@ -4,6 +4,7 @@ Flask应用主入口 - 优化版本
 """
 import urllib3
 from flask import Flask, render_template, request, jsonify, Response
+from urllib.parse import urlparse
 import requests
 
 from config import current_config as config
@@ -18,6 +19,10 @@ from validators import (
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
+
+# 会修改数据的请求方法
+WRITE_METHODS = ('POST', 'PUT', 'PATCH', 'DELETE')
 
 
 # 爵位成长值基数：按 (app_id, 身份类型) 分组，值与原配置保持一致
@@ -47,6 +52,42 @@ def _is_ajax():
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
+def _same_origin():
+    """判断写请求是否同源；拿不到来源信息时按同源处理（兼容 curl / 脚本）"""
+    origin = request.headers.get('Origin') or request.headers.get('Referer')
+    if not origin:
+        return True
+    try:
+        host = urlparse(origin).hostname
+    except Exception:
+        return True
+    if not host:
+        return True
+    # 网关可能改写 Host，X-Forwarded-Host 保留的原始域名也算同源
+    hosts = {request.host.split(':')[0]}
+    forwarded = request.headers.get('X-Forwarded-Host', '')
+    if forwarded:
+        hosts.add(forwarded.split(':')[0].strip())
+    return host in hosts
+
+
+@app.before_request
+def block_cross_site_write():
+    """跨站写操作防护（轻量 CSRF）：只拦「带了来源且来源不同」的写请求"""
+    if request.method in WRITE_METHODS and not _same_origin():
+        return jsonify({'success': False, 'message': '拒绝跨站请求'}), 403
+    return None
+
+
+@app.after_request
+def add_security_headers(response):
+    """基础安全响应头（不引入 CSP，避免影响页面内联脚本）"""
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'same-origin')
+    return response
+
+
 @app.before_request
 def require_basic_auth():
     """平台基础认证：BASIC_AUTH_USER/PASSWORD 都配置时才启用，默认不改变现有访问方式"""
@@ -66,6 +107,19 @@ def require_basic_auth():
 def index():
     """首页"""
     return render_template("index.html")
+
+
+@app.route(f'{config.BASE_PATH}/healthz')
+def healthz():
+    """健康检查：默认只反映进程存活；带 ?db=1 时额外探测数据库"""
+    payload = {'status': 'ok', 'service': 'web2026'}
+    if request.args.get('db') == '1':
+        db_ok = db.ping()
+        payload['db'] = 'ok' if db_ok else 'error'
+        if not db_ok:
+            payload['status'] = 'degraded'
+            return jsonify(payload), 503
+    return jsonify(payload)
 
 
 @app.route(f'{config.BASE_PATH}/add', methods=['GET', 'POST'])
@@ -369,6 +423,12 @@ def not_found(error):
     if _is_ajax():
         return jsonify({'success': False, 'message': '页面不存在'}), 404
     return handle_form_error("页面不存在"), 404
+
+
+@app.errorhandler(413)
+def request_too_large(error):
+    """请求体超限"""
+    return jsonify({'success': False, 'message': '请求体过大'}), 413
 
 
 @app.errorhandler(500)
