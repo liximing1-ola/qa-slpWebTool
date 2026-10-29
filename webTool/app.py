@@ -79,7 +79,11 @@ def add_money():
         return render_template("addMoney.html")
     
     data = request.validated_data
-    db.update_money(data['uid'], money=data['money'])
+    # 业务口径：加钻石时把其余币种一并清零（沿用旧行为，避免测试环境残留金额干扰）
+    db.update_money(
+        data['uid'], money=data['money'], money_b=0, money_cash=0,
+        money_cash_b=0, gold_coin=0, money_debts=0
+    )
     return handle_success(f"恭喜你，金额：{data['money']}钻 已到账！！！")
 
 
