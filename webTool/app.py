@@ -438,7 +438,7 @@ def not_found(error):
     """404错误处理"""
     if _is_ajax():
         return jsonify({'success': False, 'message': '页面不存在'}), 404
-    return handle_form_error("页面不存在"), 404
+    return handle_form_error("页面不存在", 404)
 
 
 @app.errorhandler(413)
@@ -452,7 +452,7 @@ def internal_error(error):
     """500错误处理"""
     if _is_ajax():
         return jsonify({'success': False, 'message': '服务器内部错误'}), 500
-    return handle_form_error("服务器内部错误"), 500
+    return handle_form_error("服务器内部错误", 500)
 
 
 # ==================== 启动入口 ====================

@@ -306,6 +306,14 @@ client.post('/web2026/add', data={'uid': '200252633', 'money': '1'},
             headers={'Origin': 'http://evil.example.com'})
 check('审计：被拦截的请求也记录', audit_lines()[-1].get('result') == 'blocked', audit_lines()[-1])
 
+# 表单校验失败必须是 400，否则审计会把失败记成 ok（旧行为是 200）
+r = client.post('/web2026/add', data={'uid': '1', 'money': '1'}, headers=AJAX)
+check('校验失败返回 400（AJAX）', r.status_code == 400 and r.json.get('success') is False, r.status_code)
+last = audit_lines()[-1]
+check('审计：校验失败记为 rejected', last.get('result') == 'rejected' and last.get('status') == 400, last)
+r = client.post('/web2026/add', data={'uid': '1', 'money': '1'})
+check('校验失败返回 400（页面形态）', r.status_code == 400 and '用户ID必须是' in r.get_data(as_text=True), r.status_code)
+
 client.post('/web2026/api/sql', json={'sql': 'SELECT 1', 'token': 'should-not-log'}, headers=AJAX)
 last = audit_lines()[-1]
 check('审计：SQL 动作与语句', last.get('action') == '只读SQL查询'

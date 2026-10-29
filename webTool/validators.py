@@ -73,11 +73,16 @@ def validate_cids(cid_str):
         raise ValidationError("商品ID格式错误")
 
 
-def handle_form_error(error_msg):
-    """处理表单错误响应"""
+def handle_form_error(error_msg, status=400):
+    """处理表单错误响应
+
+    默认返回 HTTP 400（404/500 等处理器用 status 参数覆盖）：前端只看返回体里的
+    success 字段，不受状态码影响；但审计/监控靠状态码区分成败，成功 200、失败 400
+    才不会被误记成成功。
+    """
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': False, 'message': error_msg})
-    return f'<h3 style="color: red;">---------------{error_msg}---------------</h3>'
+        return jsonify({'success': False, 'message': error_msg}), status
+    return f'<h3 style="color: red;">---------------{error_msg}---------------</h3>', status
 
 
 def handle_success(msg):
