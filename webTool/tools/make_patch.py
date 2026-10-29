@@ -26,7 +26,8 @@ BASE64_COLS = 76
 
 
 def git(*args):
-    proc = subprocess.run(('git',) + args, cwd=REPO, capture_output=True)
+    # core.quotepath=false：否则中文路径会被转成 "webTool/\344\272\221..." 这种八进制形式
+    proc = subprocess.run(('git', '-c', 'core.quotepath=false') + args, cwd=REPO, capture_output=True)
     if proc.returncode != 0:
         sys.exit('git %s 失败：%s' % (' '.join(args), proc.stderr.decode('utf-8', 'replace').strip()))
     return proc.stdout.decode('utf-8', 'replace').strip()
