@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r webTool/requirements.txt
+
+      - name: 语法编译
+        run: python -m compileall -q webTool
+
+      - name: 模块可导入
+        working-directory: webTool
+        run: python -c "import config, validators, tools, database, app; print('IMPORT_OK')"
+
+      - name: 回归测试（99 项断言，不连真实数据库）
+        working-directory: webTool
+        run: python tests/run_tests.py
+
+      - name: Shell 脚本语法
+        run: |
+          bash -n webTool/update.sh
+          bash -n webTool/deploy.sh
