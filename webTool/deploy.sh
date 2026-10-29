@@ -1,7 +1,13 @@
 #!/bin/bash
 # ============================================================
-# QA测试工具平台 - 云服务器一键部署脚本
+# QA测试工具平台 - 云服务器一键部署脚本（适用于一台干净机器）
 # 使用方式: chmod +x deploy.sh && ./deploy.sh
+#
+# 注意：当前生产环境（slp-dev-sys-003）的部署方式是
+#   git clone 到 /opt/web2026/qa-slpWebTool/webTool + systemd 守护 + Higress 网关，
+#   日常更新请用 update.sh，不要在现网机器上重复执行本脚本。
+# 本脚本生成的 unit 已与 deploy/web2026.service 对齐（0.0.0.0:9090），
+# 避免误执行后服务起在别的端口导致网关 502。
 # ============================================================
 
 set -e  # 遇到错误立即退出
@@ -17,7 +23,8 @@ APP_NAME="web2026"
 APP_DIR="/opt/${APP_NAME}"
 LOG_DIR="${APP_DIR}/log"
 PYTHON_ENV="testenv"
-GUNICORN_PORT=2023
+# 监听端口：与现网 systemd unit / Higress Endpoints 保持一致，不要改回 2023
+GUNICORN_PORT=9090
 NGINX_CONF="/etc/nginx/conf.d/http.conf"
 
 # 打印信息
@@ -196,25 +203,26 @@ setup_systemd() {
         GUNICORN_PATH="/opt/${PYTHON_ENV}/bin/gunicorn"
     fi
     
-    # 创建 systemd 服务文件
+    # 创建 systemd 服务文件（与 deploy/web2026.service 保持等价）
+    if [ -f "/etc/systemd/system/${APP_NAME}.service" ]; then
+        BACKUP="/etc/systemd/system/${APP_NAME}.service.bak.$(date +%Y%m%d%H%M%S)"
+        cp "/etc/systemd/system/${APP_NAME}.service" "${BACKUP}"
+        warn "已存在旧 unit，已备份到 ${BACKUP}（现网请用 update.sh，不要重跑本脚本）"
+    fi
+
     cat > /etc/systemd/system/${APP_NAME}.service << EOF
 [Unit]
 Description=QA Test Tool Platform - Gunicorn
 After=network.target
 
 [Service]
-Type=notify
-User=root
-Group=root
+Type=simple
 WorkingDirectory=${APP_DIR}
-EnvironmentFile=${APP_DIR}/.env
-ExecStart=${GUNICORN_PATH} -c gunicorn_config.py app:app
-ExecReload=/bin/kill -s HUP \$MAINPID
-Restart=on-failure
-RestartSec=5
-KillMode=mixed
-TimeoutStopSec=10
-PrivateTmp=true
+# 文件不存在也不影响启动（前面的 - 号表示可选）
+EnvironmentFile=-${APP_DIR}/.env
+ExecStart=${GUNICORN_PATH} -b 0.0.0.0:${GUNICORN_PORT} -w 2 --worker-class gevent --timeout 30 --graceful-timeout 30 --max-requests 2000 --max-requests-jitter 200 --access-logfile - --error-logfile - app:app
+Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
