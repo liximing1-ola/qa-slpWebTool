@@ -225,16 +225,6 @@ class Database:
             print(f'插入人员失败: {e}')
             return False
     
-    def sql_demo(self, user_id):
-        """SQL演示查询"""
-        sql = "SELECT username FROM qa_case.user WHERE id = :user_id"
-        try:
-            result = self.query(sql, {'user_id': user_id})
-            return result
-        except Exception as e:
-            print(f'查询失败: {e}')
-            return []
-    
     def pay(self, uid, money):
         """模拟支付 - 分两步：
         1. 插入支付记录(state=sent)

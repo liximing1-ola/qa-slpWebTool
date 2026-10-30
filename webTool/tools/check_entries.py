@@ -24,6 +24,10 @@ WEB = os.path.dirname(HERE)
 sys.path.insert(0, WEB)
 os.chdir(WEB)
 
+# 操作记录查询页未配置密码时返回 403（设计如此），自检时给个临时密码，
+# 否则会把「故意关闭」误报成页面打不开
+os.environ.setdefault('AUDIT_VIEW_PASSWORD', 'entries-selfcheck')
+
 import app as appmod  # noqa: E402
 from config import current_config as config  # noqa: E402
 

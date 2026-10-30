@@ -1,53 +1,142 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>sqlDemo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作记录查询</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    <style type="text/css">
-     input{
-     margin-right: 5px;
-     margin-left: 5px;
-     margin-top: 10px;
-     margin-bottom: 10px；
-     }
-        .one{
-        position: absolute;
-        width:300px
-        height:300px
-        background: #9ca05c;
-        display: flex;
-        left:50%;
-        top:40%;
-        margin-left: -150px;
-        margin-right: -150px
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 24px;
         }
 
-        .two{
-        position: absolute;
-        width:300px
-        height:300px
-        background: #9ca05c;
-        display: flex;
-        left:45%;
-        top:33%;
-        margin-left: -150px;
-        margin-right: -150px
-        }
-</style>
+        .wrap { max-width: 1180px; margin: 0 auto; }
 
+        .card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 28px 32px;
+            box-shadow: 0 10px 40px rgba(0,0,0,.2);
+        }
+
+        /* ---------- 未解锁：只有密码框 ---------- */
+        .gate { max-width: 420px; margin: 12vh auto 0; text-align: center; }
+        .gate h2 { color: #333; font-size: 1.35rem; margin-bottom: 8px; }
+        .gate p { color: #888; font-size: .88rem; margin-bottom: 22px; }
+        .gate input {
+            width: 100%; padding: 12px 16px; font-size: 1rem;
+            border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 16px;
+        }
+        .gate input:focus { outline: none; border-color: #667eea; }
+        .gate button {
+            width: 100%; padding: 12px; font-size: 1rem; color: #fff; cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 0; border-radius: 8px;
+        }
+        .back { display: inline-block; margin-top: 18px; color: #667eea; font-size: .88rem; text-decoration: none; }
+        .err { color: #c0392b; font-size: .88rem; margin-bottom: 14px; }
+
+        /* ---------- 已解锁：工具栏 + 表格 ---------- */
+        .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 18px; }
+        .bar h2 { color: #333; font-size: 1.2rem; margin-right: auto; }
+        .bar input {
+            padding: 9px 14px; font-size: .95rem; width: 200px;
+            border: 2px solid #e0e0e0; border-radius: 8px;
+        }
+        .bar input:focus { outline: none; border-color: #667eea; }
+        .bar button, .bar a.btn {
+            padding: 9px 18px; font-size: .92rem; border-radius: 8px; cursor: pointer;
+            border: 0; text-decoration: none; display: inline-block;
+        }
+        .bar button { background: #667eea; color: #fff; }
+        .bar a.btn { background: #f0f0f5; color: #555; }
+
+        .hint { color: #888; font-size: .85rem; margin-bottom: 12px; }
+
+        .table-box { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #eef0f4; white-space: nowrap; }
+        th { background: #f7f8fc; color: #555; font-weight: 600; position: sticky; top: 0; }
+        tbody tr:hover { background: #fafbff; }
+        td.params { white-space: normal; max-width: 320px; color: #666; }
+        td.uid { font-family: ui-monospace, Consolas, monospace; color: #333; }
+
+        .tag { padding: 2px 8px; border-radius: 10px; font-size: .78rem; }
+        .tag-ok       { background: #e8f7ee; color: #1a7f45; }
+        .tag-rejected { background: #fff3e0; color: #b26a00; }
+        .tag-failed   { background: #fdeaea; color: #c0392b; }
+        .tag-blocked  { background: #f0e9fb; color: #6b3fa0; }
+        .tag-error    { background: #fdeaea; color: #c0392b; }
+        .tag-other    { background: #eef0f4; color: #555; }
+
+        .empty { padding: 40px 0; text-align: center; color: #999; }
+    </style>
 </head>
 <body>
-<center>
-        <div class="two">
-   <h3>---------------输入用户ID查询用户姓名-----------------</h3>
-        </div>
-    <div class="one">
-        <form action="/web2026/sqlDemo" method="post">
-        用户ID: <input type="text" name="id" size="20" maxlength="20" style="height: 20px; color:red"><br>
-        <input type="submit" name="submit" value="确定" style="height: 30px; width: 70px">
+<div class="wrap">
+{% if not unlocked %}
+    <div class="card gate">
+        <h2>🔒 操作记录查询</h2>
+        <p>该页面需要访问密码</p>
+        {% if error %}<p class="err">{{ error }}</p>{% endif %}
+        <form method="post">
+            <input type="password" name="password" placeholder="请输入访问密码" autofocus required>
+            <button type="submit">解锁</button>
         </form>
+        <a class="back" href="/web2026/">← 返回首页</a>
     </div>
-</center>
+{% else %}
+    <div class="card">
+        <form class="bar" method="get">
+            <h2>操作记录</h2>
+            <input type="text" name="uid" value="{{ uid }}" placeholder="用户ID（留空看全部）" maxlength="20">
+            <button type="submit">查询</button>
+            <a class="btn" href="/web2026/sqlDemo">清空</a>
+            <a class="btn" href="/web2026/sqlDemo?lock=1">锁定</a>
+        </form>
+        <div class="hint">
+            {% if uid %}用户 {{ uid }} 的最近 {{ rows|length }} 条操作记录（最多 {{ limit }} 条）{% else %}全部用户最近 {{ rows|length }} 条操作记录（最多 {{ limit }} 条）{% endif %}
+        </div>
+        <div class="table-box">
+        {% if rows %}
+            <table>
+                <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>用户ID</th>
+                    <th>动作</th>
+                    <th>参数</th>
+                    <th>来源IP</th>
+                    <th>结果</th>
+                    <th>状态码</th>
+                    <th>耗时</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>{{ row.ts|replace('T', ' ') }}</td>
+                        <td class="uid">{{ row.uid or '-' }}</td>
+                        <td>{{ row.action or row.endpoint }}</td>
+                        <td class="params">{% for k, v in (row.params or {}).items() %}{{ k }}={{ v }}{% if not loop.last %}，{% endif %}{% endfor %}</td>
+                        <td>{{ row.ip or row.remote or '-' }}</td>
+                        <td><span class="tag tag-{{ row.result if row.result in ('ok', 'rejected', 'failed', 'blocked', 'error') else 'other' }}">{{ row.result }}</span></td>
+                        <td>{{ row.status }}</td>
+                        <td>{{ row.ms }} ms</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty">没有匹配的记录</div>
+        {% endif %}
+        </div>
+    </div>
+{% endif %}
+</div>
 </body>
 </html>

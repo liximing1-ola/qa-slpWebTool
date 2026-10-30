@@ -43,6 +43,13 @@ class Config:
         'AUDIT_LOG_DIR',
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     )
+
+    # 操作记录查询页（/web2026/sqlDemo）的访问密码；留空则该页面关闭（返回 403）
+    AUDIT_VIEW_PASSWORD = os.getenv('AUDIT_VIEW_PASSWORD', '')
+    # 该页面一次展示的记录条数
+    AUDIT_VIEW_RECENT = int(os.getenv('AUDIT_VIEW_RECENT', 20))
+    # 会话签名密钥；留空则由 AUDIT_VIEW_PASSWORD 派生，保证多 worker / 重启后会话不失效
+    SECRET_KEY = os.getenv('SECRET_KEY', '')
     
     # API配置
     # 创建商业房间的 RPC 地址

@@ -15,7 +15,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.dirname(HERE)
 sys.path.insert(0, WEB)
 os.chdir(WEB)
-for k in ('SQL_API_TOKEN', 'BASIC_AUTH_USER', 'BASIC_AUTH_PASSWORD'):
+for k in ('SQL_API_TOKEN', 'BASIC_AUTH_USER', 'BASIC_AUTH_PASSWORD', 'AUDIT_VIEW_PASSWORD',
+          'AUDIT_VIEW_RECENT', 'SECRET_KEY'):
     os.environ.pop(k, None)
 
 from sqlalchemy import create_engine
@@ -34,12 +35,18 @@ def check(name, ok, extra=''):
 
 # ==================== 1. 页面与入口 ====================
 client = appmod.app.test_client()
+
+# 操作记录查询页配了密码才能访问（未配置时 403 关闭），这里固定一个测试密码，
+# 页面本身的密码/过滤/条数行为在 4.5 单独验
+VIEW_PASS = 'qa-view-pass'
+config.current_config.AUDIT_VIEW_PASSWORD = VIEW_PASS
+
 r = client.get('/web2026/')
 html = r.get_data(as_text=True)
 check('首页返回 200', r.status_code == 200, r.status_code)
 check('CI 打包入口存在', 'http://172.19.37.71:8080/' in html)
 check('首页卡片数量 15', html.count('class="card"') == 15, html.count('class="card"'))
-check('首页有「查询人员信息」入口', 'href="/web2026/sqlDemo"' in html)
+check('首页有「操作记录查询」入口', 'href="/web2026/sqlDemo"' in html and '操作记录查询' in html)
 
 for path in ('/web2026/add', '/web2026/addExp', '/web2026/addCommodity', '/web2026/addfragment',
              '/web2026/createRoom', '/web2026/idChange', '/web2026/insertPerson', '/web2026/insertbroker',
@@ -332,6 +339,81 @@ audit_backup = config.current_config.AUDIT_LOG_DIR
 config.current_config.AUDIT_LOG_DIR = blocker
 r = client.post('/web2026/add', data={'uid': '200252633', 'money': '100'}, headers=AJAX)
 check('审计：写失败不影响请求', r.status_code == 200 and r.json.get('success') is True, r.status_code)
+config.current_config.AUDIT_LOG_DIR = audit_backup
+
+# ==================== 4.5 操作记录查询页（密码解锁 / uid 过滤 / 最近 N 条） ====================
+view_url = '/web2026/sqlDemo'
+client.get(view_url + '?lock=1')  # 回到锁定态，保证下面分支从零开始
+
+config.current_config.AUDIT_VIEW_PASSWORD = ''
+r = client.get(view_url)
+check('记录查询：未配置密码则页面关闭（403）',
+      r.status_code == 403 and '未开放' in r.get_data(as_text=True), r.status_code)
+config.current_config.AUDIT_VIEW_PASSWORD = VIEW_PASS
+
+r = client.get(view_url)
+page = r.get_data(as_text=True)
+check('记录查询：未解锁只给密码框', r.status_code == 200 and '请输入访问密码' in page, r.status_code)
+check('记录查询：未解锁不泄露记录', '加钻石' not in page and '<table>' not in page)
+
+r = client.post(view_url, data={'password': 'wrong-pass'})
+check('记录查询：密码错误 400',
+      r.status_code == 400 and '访问密码错误' in r.get_data(as_text=True), r.status_code)
+last = audit_lines()[-1]
+check('记录查询：密码不落盘', 'password' not in (last.get('params') or {})
+      and 'wrong-pass' not in _json.dumps(last, ensure_ascii=False), last.get('params'))
+check('记录查询：密码错误后仍未解锁',
+      '请输入访问密码' in client.get(view_url).get_data(as_text=True))
+
+r = client.post(view_url, data={'password': VIEW_PASS})
+check('记录查询：密码正确 302 跳回本页',
+      r.status_code == 302 and r.headers['Location'].endswith(view_url),
+      (r.status_code, r.headers.get('Location')))
+page = client.get(view_url).get_data(as_text=True)
+check('记录查询：解锁后能看到记录表', '<table>' in page and '加钻石' in page)
+
+page = client.get(view_url + '?uid=200252633').get_data(as_text=True)
+check('记录查询：按 uid 过滤生效', '用户 200252633' in page and '200252633' in page)
+page = client.get(view_url + '?uid=1').get_data(as_text=True)
+check('记录查询：其他 uid 的记录不出现', '200252633' not in page, page.count('200252633'))
+r = client.get(view_url + '?uid=abc')
+check('记录查询：uid 非数字 400', r.status_code == 400, r.status_code)
+
+check('记录查询：锁定 302', client.get(view_url + '?lock=1').status_code == 302)
+check('记录查询：锁定后要重新输密码',
+      '请输入访问密码' in client.get(view_url).get_data(as_text=True))
+
+# 直接测 audit.recent：条数上限、新→旧、跨日、坏行跳过、uid 过滤
+import audit as auditmod  # noqa: E402
+
+probe = tempfile.mkdtemp(prefix='web2026-recent-')
+config.current_config.AUDIT_LOG_DIR = probe
+
+
+def write_day(name, items):
+    with open(os.path.join(probe, name), 'w', encoding='utf-8') as fp:
+        for item in items:
+            fp.write(_json.dumps(item, ensure_ascii=False) + '\n')
+
+
+write_day('audit-20261028.jsonl', [{'ts': 'd1-%02d' % i, 'uid': '111'} for i in range(30)])
+write_day('audit-20261029.jsonl', [{'ts': 'd2-%02d' % i, 'uid': '222'} for i in range(5)])
+with open(os.path.join(probe, 'audit-20261029.jsonl'), 'a', encoding='utf-8') as fp:
+    fp.write('{"ts": "broken", "uid"\n')  # 写到一半的坏行
+
+rows = auditmod.recent(limit=20)
+check('记录查询：只取最近 20 条', len(rows) == 20, len(rows))
+check('记录查询：新的在前（跨文件按日期倒序）',
+      (rows[0]['ts'], rows[4]['ts'], rows[5]['ts']) == ('d2-04', 'd2-00', 'd1-29'),
+      [rows[0]['ts'], rows[4]['ts'], rows[5]['ts']])
+check('记录查询：坏行被跳过', all(row['ts'] != 'broken' for row in rows))
+
+rows = auditmod.recent(uid='111', limit=20)
+check('记录查询：uid 过滤后仍取满 20 条', len(rows) == 20 and {r['uid'] for r in rows} == {'111'}, len(rows))
+check('记录查询：过滤后仍是最新的在前', rows[0]['ts'] == 'd1-29', rows[0]['ts'])
+
+config.current_config.AUDIT_LOG_DIR = os.path.join(probe, 'not-exist')
+check('记录查询：日志目录不存在时返回空列表', auditmod.recent() == [])
 config.current_config.AUDIT_LOG_DIR = audit_backup
 
 appmod.db = real_db

@@ -8,6 +8,7 @@
 - 审计本身绝不影响业务：record() 内部吞掉所有异常，只降级为一条 print
 - 请求体只挑白名单字段，避免把身份证、令牌等无关内容写进日志
 """
+import collections
 import json
 import os
 import time
@@ -23,7 +24,7 @@ ENDPOINT_ACTIONS = {
     'add_money': '加钻石',
     'id_change': '改身份证',
     'insert_person': '插入人员',
-    'sql_demo': '查询人员信息',
+    'sql_demo': '查询操作记录',
     'create_room': '创建房间',
     'pay': '充值',
     'add_commodity': '加商品',
@@ -106,6 +107,47 @@ def _append(line):
     filename = 'audit-%s.jsonl' % time.strftime('%Y%m%d')
     with open(os.path.join(directory, filename), 'a', encoding='utf-8') as fp:
         fp.write(line + '\n')
+
+
+def recent(uid=None, limit=20, max_files=7):
+    """取最近的审计记录（新 -> 旧），可选按 uid 过滤
+
+    只扫最近 max_files 个按天文件，避免日志攒多以后每次都把磁盘读一遍。
+    单文件内用 deque(maxlen=limit) 只留最后 N 条，不把整个文件读进内存；
+    损坏行（写到一半被杀、手改坏了）直接跳过，不让一条脏数据毁掉整页。
+    """
+    directory = _log_dir()
+    if not os.path.isdir(directory):
+        return []
+    names = sorted(
+        (n for n in os.listdir(directory)
+         if n.startswith('audit-') and n.endswith('.jsonl')),
+        reverse=True,
+    )[:max_files]
+
+    wanted = str(uid or '').strip()
+    rows = []
+    for name in names:
+        kept = collections.deque(maxlen=limit)
+        try:
+            with open(os.path.join(directory, name), encoding='utf-8') as fp:
+                for line in fp:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        item = json.loads(line)
+                    except ValueError:
+                        continue
+                    if wanted and str(item.get('uid', '')) != wanted:
+                        continue
+                    kept.append(item)
+        except OSError:
+            continue
+        rows.extend(reversed(kept))
+        if len(rows) >= limit:
+            return rows[:limit]
+    return rows
 
 
 def record(response):

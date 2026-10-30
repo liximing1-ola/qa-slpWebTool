@@ -2,9 +2,10 @@
 """
 Flask应用主入口 - 优化版本
 """
+import hmac
 import time
 import urllib3
-from flask import Flask, render_template, request, jsonify, Response, g
+from flask import Flask, render_template, request, jsonify, Response, g, session, redirect, url_for
 from urllib.parse import urlparse
 import requests
 
@@ -22,6 +23,14 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
+# 会话密钥：优先用 SECRET_KEY；未配置时由查询页密码派生。
+# 不能每次启动随机生成——gunicorn 起 2 个 worker，各自随机会导致同一个用户
+# 在两个 worker 之间被反复踢下线。改密码即等于作废旧会话。
+app.secret_key = config.SECRET_KEY or hmac.new(
+    b'web2026-session', config.AUDIT_VIEW_PASSWORD.encode('utf-8'), 'sha256'
+).hexdigest()
+# 会话 Cookie 不跨站发送（密码解锁的 POST 已经过跨站防护，这里再收一道）
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # 会修改数据的请求方法
 WRITE_METHODS = ('POST', 'PUT', 'PATCH', 'DELETE')
@@ -194,17 +203,38 @@ def insert_person():
 
 
 @app.route(f'{config.BASE_PATH}/sqlDemo', methods=['GET', 'POST'])
-@form_validator({'id': lambda x: validate_num(x)})
 def sql_demo():
-    """SQL演示"""
-    if request.method == 'GET':
-        return render_template('sqlDemo.html')
+    """操作记录查询：先输密码解锁，再按 uid 查最近的操作记录（只读 audit JSONL，不连库）"""
+    # 没配密码就当作关闭，避免一个能看全组操作记录的页面裸在外面
+    if not config.AUDIT_VIEW_PASSWORD:
+        return handle_form_error('该页面未开放：服务器未配置 AUDIT_VIEW_PASSWORD', 403)
 
-    data = request.validated_data
-    result = db.sql_demo(data['id'])
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': True, 'message': f'查询结果：{result}'})
-    return f'<h3>当前查询结果：{result}</h3>'
+    if request.method == 'POST':
+        submitted = request.form.get('password', '')
+        if not hmac.compare_digest(submitted, config.AUDIT_VIEW_PASSWORD):
+            session.pop('audit_view', None)
+            # 保留 400：审计靠状态码把「输错密码」记成 rejected，改成 200 会变成 ok
+            return render_template('sqlDemo.html', unlocked=False, error='访问密码错误'), 400
+        session['audit_view'] = True
+        return redirect(url_for('sql_demo'))  # 302 避开刷新重提密码
+
+    if request.args.get('lock'):
+        session.pop('audit_view', None)
+        return redirect(url_for('sql_demo'))
+
+    if not session.get('audit_view'):
+        return render_template('sqlDemo.html', unlocked=False)
+
+    uid = (request.args.get('uid') or '').strip()
+    if uid and not (uid.isdigit() and len(uid) <= 20):
+        return handle_form_error('用户ID必须是数字', 400)
+    return render_template(
+        'sqlDemo.html',
+        unlocked=True,
+        uid=uid,
+        rows=audit.recent(uid=uid, limit=config.AUDIT_VIEW_RECENT),
+        limit=config.AUDIT_VIEW_RECENT,
+    )
 
 
 @app.route(f'{config.BASE_PATH}/createRoom', methods=['GET', 'POST'])
