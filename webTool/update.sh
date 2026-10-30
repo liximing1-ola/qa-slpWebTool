@@ -115,6 +115,34 @@ health_check() {
     return 1
 }
 
+# 进程是否落后于磁盘上的代码/配置（true = 不重启就不会生效）。
+# 只比提交号是不够的：手工 git pull 过、或改了 .env 之后再跑本脚本，
+# 提交号可能已经等于远端，旧逻辑会直接「无需重启」退出，新代码永远不生效。
+STALE_REASON=""
+service_needs_start() {
+    local start_raw start_ts head_ts env_ts env_file
+    systemctl is-active --quiet "$SERVICE_NAME" || return 0   # 没在运行，当然要起
+    start_raw="$(systemctl show -p ActiveEnterTimestamp --value "$SERVICE_NAME" 2>/dev/null)"
+    [ -n "$start_raw" ] || return 1                          # 拿不到就不自作主张
+    start_ts="$(date -d "$start_raw" +%s 2>/dev/null)" || return 1
+
+    head_ts="$(git log -1 --format=%ct 2>/dev/null)"
+    if [ -n "$head_ts" ] && [ "$start_ts" -lt "$head_ts" ]; then
+        STALE_REASON="服务启动时间早于当前提交 $CURRENT_COMMIT，内存里还是旧代码"
+        return 0
+    fi
+
+    env_file="$APP_DIR/.env"
+    if [ -f "$env_file" ]; then
+        env_ts="$(stat -c %Y "$env_file" 2>/dev/null)"
+        if [ -n "$env_ts" ] && [ "$env_ts" -gt "$start_ts" ]; then
+            STALE_REASON=".env 在上次启动之后被修改过，进程里还是旧配置"
+            return 0
+        fi
+    fi
+    return 1
+}
+
 # ---------------- 重启服务 ----------------
 restart_service() {
     command -v systemctl >/dev/null 2>&1 || error "未找到 systemctl，本脚本仅适用于 systemd 环境"
@@ -203,16 +231,27 @@ fi
 NEW_COMMIT="$(git rev-parse --short HEAD)"
 echo "$CURRENT_COMMIT" > "$LAST_COMMIT_FILE"
 
-if [ "$NEW_COMMIT" = "$CURRENT_COMMIT" ]; then
-    if [ "$FORCE" -eq 0 ]; then
-        info "代码已是最新（$NEW_COMMIT），无需重启"
-        info "如需强制重启: ./update.sh -f"
-        exit 0
-    fi
-    warn "代码无变更，按 -f 要求仍将重启服务"
-else
+NEED_RESTART=0
+[ "$NEW_COMMIT" != "$CURRENT_COMMIT" ] && NEED_RESTART=1
+[ "$FORCE" -eq 1 ] && NEED_RESTART=1
+
+if [ "$NEED_RESTART" -eq 0 ] && service_needs_start; then
+    warn "代码提交号未变，但$STALE_REASON"
+    warn "继续重启，否则这次的改动不会生效"
+    NEED_RESTART=1
+fi
+
+if [ "$NEED_RESTART" -eq 0 ]; then
+    info "代码已是最新（$NEW_COMMIT），无需重启"
+    info "如需强制重启: ./update.sh -f"
+    exit 0
+fi
+
+if [ "$NEW_COMMIT" != "$CURRENT_COMMIT" ]; then
     info "代码已更新: $CURRENT_COMMIT -> $NEW_COMMIT"
     git log --oneline "$CURRENT_COMMIT..$NEW_COMMIT" | sed 's/^/    /'
+elif [ "$FORCE" -eq 1 ] && [ -z "$STALE_REASON" ]; then
+    warn "代码无变更，按 -f 要求仍将重启服务"
 fi
 
 # ---------------- 依赖变更检查 ----------------
