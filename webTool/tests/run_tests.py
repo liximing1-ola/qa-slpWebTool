@@ -16,7 +16,7 @@ WEB = os.path.dirname(HERE)
 sys.path.insert(0, WEB)
 os.chdir(WEB)
 for k in ('SQL_API_TOKEN', 'BASIC_AUTH_USER', 'BASIC_AUTH_PASSWORD', 'AUDIT_VIEW_PASSWORD',
-          'AUDIT_VIEW_RECENT', 'SECRET_KEY'):
+          'AUDIT_VIEW_RECENT'):
     os.environ.pop(k, None)
 
 from sqlalchemy import create_engine
@@ -37,7 +37,7 @@ def check(name, ok, extra=''):
 client = appmod.app.test_client()
 
 # 操作记录查询页配了密码才能访问（未配置时 403 关闭），这里固定一个测试密码，
-# 页面本身的密码/过滤/条数行为在 4.5 单独验
+# 页面本身的密码/条数行为在 4.5 单独验
 VIEW_PASS = 'qa-view-pass'
 config.current_config.AUDIT_VIEW_PASSWORD = VIEW_PASS
 
@@ -341,9 +341,8 @@ r = client.post('/web2026/add', data={'uid': '200252633', 'money': '100'}, heade
 check('审计：写失败不影响请求', r.status_code == 200 and r.json.get('success') is True, r.status_code)
 config.current_config.AUDIT_LOG_DIR = audit_backup
 
-# ==================== 4.5 操作记录查询页（密码解锁 / 直接展示最近 N 条） ====================
+# ==================== 4.5 操作记录查询页（每次都要密码 / 直接展示最近 N 条） ====================
 view_url = '/web2026/sqlDemo'
-client.get(view_url + '?lock=1')  # 回到锁定态，保证下面分支从零开始
 
 config.current_config.AUDIT_VIEW_PASSWORD = ''
 r = client.get(view_url)
@@ -353,7 +352,7 @@ config.current_config.AUDIT_VIEW_PASSWORD = VIEW_PASS
 
 r = client.get(view_url)
 page = r.get_data(as_text=True)
-check('记录查询：未解锁只给密码框', r.status_code == 200 and '请输入访问密码' in page, r.status_code)
+check('记录查询：进入页面就只给密码框', r.status_code == 200 and '请输入访问密码' in page, r.status_code)
 check('记录查询：未解锁不泄露记录', '加钻石' not in page and '<table>' not in page)
 
 r = client.post(view_url, data={'password': 'wrong-pass'})
@@ -362,25 +361,20 @@ check('记录查询：密码错误 400',
 last = audit_lines()[-1]
 check('记录查询：密码不落盘', 'password' not in (last.get('params') or {})
       and 'wrong-pass' not in _json.dumps(last, ensure_ascii=False), last.get('params'))
-check('记录查询：密码错误后仍未解锁',
-      '请输入访问密码' in client.get(view_url).get_data(as_text=True))
+check('记录查询：密码错误后仍是密码框',
+      '请输入访问密码' in r.get_data(as_text=True))
 
 r = client.post(view_url, data={'password': VIEW_PASS})
-check('记录查询：密码正确 302 跳回本页',
-      r.status_code == 302 and r.headers['Location'].endswith(view_url),
-      (r.status_code, r.headers.get('Location')))
-page = client.get(view_url).get_data(as_text=True)
-check('记录查询：解锁后能看到记录表', '<table>' in page and '加钻石' in page)
-
-page = client.get(view_url).get_data(as_text=True)
-check('记录查询：解锁后不再提供 uid 输入框', 'name="uid"' not in page)
-check('记录查询：解锁后直接列出记录（无需再提交查询）',
-      '最近操作记录' in page and '<table>' in page)
+page = r.get_data(as_text=True)
+check('记录查询：密码正确就地出结果（200，不跳转）',
+      r.status_code == 200 and '<table>' in page, r.status_code)
+check('记录查询：结果页不写 cookie，不记住登录', 'Set-Cookie' not in r.headers, list(r.headers.keys()))
+check('记录查询：结果里带最新的记录', '加钻石' in page)
+check('记录查询：不再提供 uid 输入框', 'name="uid"' not in page)
+check('记录查询：结果页没有锁定/刷新按钮', '锁定' not in page and '>刷新<' not in page)
 check('记录查询：提示的条数上限来自配置',
       '（最多 %d 条）' % config.current_config.AUDIT_VIEW_RECENT in page)
-
-check('记录查询：锁定 302', client.get(view_url + '?lock=1').status_code == 302)
-check('记录查询：锁定后要重新输密码',
+check('记录查询：看过一次后再次进入仍要密码',
       '请输入访问密码' in client.get(view_url).get_data(as_text=True))
 
 # 直接测 audit.recent / audit.log_status：条数上限、新→旧、跨日、坏行跳过、目录不存在
@@ -421,10 +415,9 @@ check('记录查询：目录不存在时文件数为 0', auditmod.log_status()[1
 config.current_config.AUDIT_LOG_DIR = audit_backup
 
 # 空目录时页面要把「读的哪儿、找到几个文件」显示出来，免得只看到一句「没数据」
-client.post(view_url, data={'password': VIEW_PASS})  # 上面锁定过，这里重新解锁
 empty_dir = tempfile.mkdtemp(prefix='web2026-empty-')
 config.current_config.AUDIT_LOG_DIR = empty_dir
-page = client.get(view_url).get_data(as_text=True)
+page = client.post(view_url, data={'password': VIEW_PASS}).get_data(as_text=True)
 check('记录查询：无记录时页面自证日志目录',
       '读的目录' in page and empty_dir in page and '找到 0 个 audit-*.jsonl' in page, page[-300:])
 config.current_config.AUDIT_LOG_DIR = audit_backup
