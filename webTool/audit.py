@@ -109,8 +109,19 @@ def _append(line):
         fp.write(line + '\n')
 
 
-def recent(uid=None, limit=20, max_files=7):
-    """取最近的审计记录（新 -> 旧），可选按 uid 过滤
+def log_status():
+    """返回 (日志目录, 文件个数)，供查询页在没数据时自证「到底读的哪儿」"""
+    directory = _log_dir()
+    if not os.path.isdir(directory):
+        return directory, 0
+    return directory, sum(
+        1 for n in os.listdir(directory)
+        if n.startswith('audit-') and n.endswith('.jsonl')
+    )
+
+
+def recent(limit=10, max_files=7):
+    """取最近的审计记录（新 -> 旧）
 
     只扫最近 max_files 个按天文件，避免日志攒多以后每次都把磁盘读一遍。
     单文件内用 deque(maxlen=limit) 只留最后 N 条，不把整个文件读进内存；
@@ -125,7 +136,6 @@ def recent(uid=None, limit=20, max_files=7):
         reverse=True,
     )[:max_files]
 
-    wanted = str(uid or '').strip()
     rows = []
     for name in names:
         kept = collections.deque(maxlen=limit)
@@ -136,12 +146,9 @@ def recent(uid=None, limit=20, max_files=7):
                     if not line:
                         continue
                     try:
-                        item = json.loads(line)
+                        kept.append(json.loads(line))
                     except ValueError:
                         continue
-                    if wanted and str(item.get('uid', '')) != wanted:
-                        continue
-                    kept.append(item)
         except OSError:
             continue
         rows.extend(reversed(kept))

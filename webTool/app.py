@@ -225,15 +225,14 @@ def sql_demo():
     if not session.get('audit_view'):
         return render_template('sqlDemo.html', unlocked=False)
 
-    uid = (request.args.get('uid') or '').strip()
-    if uid and not (uid.isdigit() and len(uid) <= 20):
-        return handle_form_error('用户ID必须是数字', 400)
+    log_dir, file_count = audit.log_status()
     return render_template(
         'sqlDemo.html',
         unlocked=True,
-        uid=uid,
-        rows=audit.recent(uid=uid, limit=config.AUDIT_VIEW_RECENT),
+        rows=audit.recent(limit=config.AUDIT_VIEW_RECENT),
         limit=config.AUDIT_VIEW_RECENT,
+        log_dir=log_dir,
+        file_count=file_count,
     )
 
 

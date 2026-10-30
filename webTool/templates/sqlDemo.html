@@ -43,16 +43,10 @@
         /* ---------- 已解锁：工具栏 + 表格 ---------- */
         .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 18px; }
         .bar h2 { color: #333; font-size: 1.2rem; margin-right: auto; }
-        .bar input {
-            padding: 9px 14px; font-size: .95rem; width: 200px;
-            border: 2px solid #e0e0e0; border-radius: 8px;
-        }
-        .bar input:focus { outline: none; border-color: #667eea; }
         .bar button, .bar a.btn {
             padding: 9px 18px; font-size: .92rem; border-radius: 8px; cursor: pointer;
             border: 0; text-decoration: none; display: inline-block;
         }
-        .bar button { background: #667eea; color: #fff; }
         .bar a.btn { background: #f0f0f5; color: #555; }
 
         .hint { color: #888; font-size: .85rem; margin-bottom: 12px; }
@@ -74,6 +68,8 @@
         .tag-other    { background: #eef0f4; color: #555; }
 
         .empty { padding: 40px 0; text-align: center; color: #999; }
+        .diag { margin-top: 14px; font-size: .82rem; line-height: 1.9; color: #aaa; }
+        .diag code { background: #f5f6fa; padding: 2px 6px; border-radius: 4px; color: #666; }
     </style>
 </head>
 <body>
@@ -91,16 +87,12 @@
     </div>
 {% else %}
     <div class="card">
-        <form class="bar" method="get">
-            <h2>操作记录</h2>
-            <input type="text" name="uid" value="{{ uid }}" placeholder="用户ID（留空看全部）" maxlength="20">
-            <button type="submit">查询</button>
-            <a class="btn" href="/web2026/sqlDemo">清空</a>
+        <div class="bar">
+            <h2>最近操作记录</h2>
+            <a class="btn" href="/web2026/sqlDemo">刷新</a>
             <a class="btn" href="/web2026/sqlDemo?lock=1">锁定</a>
-        </form>
-        <div class="hint">
-            {% if uid %}用户 {{ uid }} 的最近 {{ rows|length }} 条操作记录（最多 {{ limit }} 条）{% else %}全部用户最近 {{ rows|length }} 条操作记录（最多 {{ limit }} 条）{% endif %}
         </div>
+        <div class="hint">最近 {{ rows|length }} 条（最多 {{ limit }} 条），新的在最上面</div>
         <div class="table-box">
         {% if rows %}
             <table>
@@ -132,7 +124,14 @@
                 </tbody>
             </table>
         {% else %}
-            <div class="empty">没有匹配的记录</div>
+            <div class="empty">
+                <div>最近没有操作记录</div>
+                <div class="diag">
+                    读的目录：<code>{{ log_dir }}</code><br>
+                    找到 {{ file_count }} 个 audit-*.jsonl 文件
+                    {% if file_count == 0 %}<br>没有一个日志文件：要么还没有写操作，要么 AUDIT_LOG_DIR 指到了别的目录{% endif %}
+                </div>
+            </div>
         {% endif %}
         </div>
     </div>

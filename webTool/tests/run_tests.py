@@ -341,7 +341,7 @@ r = client.post('/web2026/add', data={'uid': '200252633', 'money': '100'}, heade
 check('审计：写失败不影响请求', r.status_code == 200 and r.json.get('success') is True, r.status_code)
 config.current_config.AUDIT_LOG_DIR = audit_backup
 
-# ==================== 4.5 操作记录查询页（密码解锁 / uid 过滤 / 最近 N 条） ====================
+# ==================== 4.5 操作记录查询页（密码解锁 / 直接展示最近 N 条） ====================
 view_url = '/web2026/sqlDemo'
 client.get(view_url + '?lock=1')  # 回到锁定态，保证下面分支从零开始
 
@@ -372,18 +372,18 @@ check('记录查询：密码正确 302 跳回本页',
 page = client.get(view_url).get_data(as_text=True)
 check('记录查询：解锁后能看到记录表', '<table>' in page and '加钻石' in page)
 
-page = client.get(view_url + '?uid=200252633').get_data(as_text=True)
-check('记录查询：按 uid 过滤生效', '用户 200252633' in page and '200252633' in page)
-page = client.get(view_url + '?uid=1').get_data(as_text=True)
-check('记录查询：其他 uid 的记录不出现', '200252633' not in page, page.count('200252633'))
-r = client.get(view_url + '?uid=abc')
-check('记录查询：uid 非数字 400', r.status_code == 400, r.status_code)
+page = client.get(view_url).get_data(as_text=True)
+check('记录查询：解锁后不再提供 uid 输入框', 'name="uid"' not in page)
+check('记录查询：解锁后直接列出记录（无需再提交查询）',
+      '最近操作记录' in page and '<table>' in page)
+check('记录查询：提示的条数上限来自配置',
+      '（最多 %d 条）' % config.current_config.AUDIT_VIEW_RECENT in page)
 
 check('记录查询：锁定 302', client.get(view_url + '?lock=1').status_code == 302)
 check('记录查询：锁定后要重新输密码',
       '请输入访问密码' in client.get(view_url).get_data(as_text=True))
 
-# 直接测 audit.recent：条数上限、新→旧、跨日、坏行跳过、uid 过滤
+# 直接测 audit.recent / audit.log_status：条数上限、新→旧、跨日、坏行跳过、目录不存在
 import audit as auditmod  # noqa: E402
 
 probe = tempfile.mkdtemp(prefix='web2026-recent-')
@@ -408,12 +408,25 @@ check('记录查询：新的在前（跨文件按日期倒序）',
       [rows[0]['ts'], rows[4]['ts'], rows[5]['ts']])
 check('记录查询：坏行被跳过', all(row['ts'] != 'broken' for row in rows))
 
-rows = auditmod.recent(uid='111', limit=20)
-check('记录查询：uid 过滤后仍取满 20 条', len(rows) == 20 and {r['uid'] for r in rows} == {'111'}, len(rows))
-check('记录查询：过滤后仍是最新的在前', rows[0]['ts'] == 'd1-29', rows[0]['ts'])
+rows = auditmod.recent()  # 默认 10 条
+check('记录查询：默认返回 10 条', len(rows) == 10, len(rows))
+check('记录查询：默认也按新→旧',
+      (rows[0]['ts'], rows[5]['ts']) == ('d2-04', 'd1-29'), [rows[0]['ts'], rows[5]['ts']])
+
+check('记录查询：日志目录与文件数可自证', auditmod.log_status() == (probe, 2), auditmod.log_status())
 
 config.current_config.AUDIT_LOG_DIR = os.path.join(probe, 'not-exist')
 check('记录查询：日志目录不存在时返回空列表', auditmod.recent() == [])
+check('记录查询：目录不存在时文件数为 0', auditmod.log_status()[1] == 0, auditmod.log_status())
+config.current_config.AUDIT_LOG_DIR = audit_backup
+
+# 空目录时页面要把「读的哪儿、找到几个文件」显示出来，免得只看到一句「没数据」
+client.post(view_url, data={'password': VIEW_PASS})  # 上面锁定过，这里重新解锁
+empty_dir = tempfile.mkdtemp(prefix='web2026-empty-')
+config.current_config.AUDIT_LOG_DIR = empty_dir
+page = client.get(view_url).get_data(as_text=True)
+check('记录查询：无记录时页面自证日志目录',
+      '读的目录' in page and empty_dir in page and '找到 0 个 audit-*.jsonl' in page, page[-300:])
 config.current_config.AUDIT_LOG_DIR = audit_backup
 
 appmod.db = real_db
